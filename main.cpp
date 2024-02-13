@@ -1,6 +1,9 @@
 #include <Windows.h>
 #include <cstdint>
 
+#include "Logger.h"
+#include <format>
+
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
 
 // Windowsアプリでのエントリポイント
@@ -63,7 +66,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	}
 
 	// 出力ウィンドウへの文字出力
-	OutputDebugStringA("Hello, DirectX!\n");
+	Log(std::format("Hello, {}\n", "DirectX!"));
 
 	return 0;
 }
