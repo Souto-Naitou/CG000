@@ -13,6 +13,15 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Matrix4x4">
+      <UniqueIdentifier>{cadd25bc-a611-451c-92da-296e1b89522e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Matrix4x4\calc">
+      <UniqueIdentifier>{79dc4e85-d333-4be7-a680-273b9cf41de7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="MathExtension">
+      <UniqueIdentifier>{c660d0ad-1f94-4b54-ad19-03bd5a7b57ac}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -24,6 +33,12 @@
     <ClCompile Include="Logger.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+    <ClCompile Include="Matrix4x4\calc\matrix4calc.cpp">
+      <Filter>Matrix4x4\calc</Filter>
+    </ClCompile>
+    <ClCompile Include="MathExtension\mathExtension.cpp">
+      <Filter>MathExtension</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Logger.h">
@@ -33,6 +48,21 @@
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="math\Vector4.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="Matrix4x4\calc\matrix4calc.h">
+      <Filter>Matrix4x4\calc</Filter>
+    </ClInclude>
+    <ClInclude Include="Matrix4x4.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="Vector3.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="MathExtension\mathExtension.h">
+      <Filter>MathExtension</Filter>
+    </ClInclude>
+    <ClInclude Include="Transform.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
   </ItemGroup>
