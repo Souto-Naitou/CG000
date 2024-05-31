@@ -1,6 +1,6 @@
 #pragma once
 #include "../../Matrix4x4.h"
-#include "../../Vector3.h"
+#include "../../math/Vector3.h"
 
 Matrix4x4 Add(const Matrix4x4& _m1, const Matrix4x4& _m2);
 
