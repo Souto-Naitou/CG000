@@ -40,11 +40,18 @@ IDxcBlob* CompileShader(
 	IDxcCompiler3* dxcCompiler,
 	IDxcIncludeHandler* includeHandler
 );
+
+// Grobal
+Vector4* materialData = nullptr;
+Transform transform = {};
+float rotateSpeed = {};
+
 ID3D12Resource* CreateBufferResource(ID3D12Device* _device, size_t _sizeInBytes);
 ID3D12DescriptorHeap* CreateDescriptorHeap(ID3D12Device* _device, D3D12_DESCRIPTOR_HEAP_TYPE _heapType, UINT _numDescriptors, bool _shaderVisible);
 DirectX::ScratchImage LoadTexture(const std::string _filePath);
 ID3D12Resource* CreateTextureResource(ID3D12Device* _device, const DirectX::TexMetadata& _metadata);
 void UploadTextureData(ID3D12Resource* _texture, const DirectX::ScratchImage& _mipImages);
+void ImGuiWindow();
 
 // Windowsアプリでのエントリポイント
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
@@ -272,22 +279,43 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	hr = dxcUtils->CreateDefaultIncludeHandler(&includeHandler);
 	assert(SUCCEEDED(hr));
 
+	D3D12_DESCRIPTOR_RANGE descriptorRange[1] = {};
+	descriptorRange[0].BaseShaderRegister = 0; // 0から始まる
+	descriptorRange[0].NumDescriptors = 1; // 数は1つ
+	descriptorRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV; // SRVを使う
+	descriptorRange[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND; // Offsetを自動計算
+
 	/// RootSignature作成
 	D3D12_ROOT_SIGNATURE_DESC descriptionRootSignature{};
 	descriptionRootSignature.Flags =
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
 	// RootParameter作成。複数設定できるので配列。今回は結果1つだけなので長さ１の配列
-	D3D12_ROOT_PARAMETER rootParameters[2] = {};
+	D3D12_ROOT_PARAMETER rootParameters[3] = {};
 	rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;	// CBVを使う
 	rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;	// PixelShaderで使う
 	rootParameters[0].Descriptor.ShaderRegister = 0;					// レジスタ番号０とバインド
 	rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;	// CBVを使う
 	rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;// VertexShaderで使う
 	rootParameters[1].Descriptor.ShaderRegister = 0;					// レジスタ番号０とバインド
+	rootParameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE; // DescriptorTableを使う
+	rootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL; // PixelShaderで使う
+	rootParameters[2].DescriptorTable.pDescriptorRanges = descriptorRange; // Tableの中身の配列を指定
+	rootParameters[2].DescriptorTable.NumDescriptorRanges = _countof(descriptorRange); // Tableで利用する数
 	descriptionRootSignature.pParameters = rootParameters;				// ルートパラメータ配列へのポインタ
 	descriptionRootSignature.NumParameters = _countof(rootParameters);	// 配列の長さ
-	
+
+	D3D12_STATIC_SAMPLER_DESC staticSamplers[1] = {};
+	staticSamplers[0].Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR; // BilinearFilter
+	staticSamplers[0].AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP; // 0 ~ 1の範囲外をリピート
+	staticSamplers[0].AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+	staticSamplers[0].AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+	staticSamplers[0].ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER; // 比較しない
+	staticSamplers[0].MaxLOD = D3D12_FLOAT32_MAX; // ありったけのーを使う
+	staticSamplers[0].ShaderRegister = 0; // レジスタ番号0を使用する
+	staticSamplers[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL; // PixelShaderを使う
+	descriptionRootSignature.pStaticSamplers = staticSamplers;
+	descriptionRootSignature.NumStaticSamplers = _countof(staticSamplers);
 
 	// シリアライズしてバイナリにする
 	ID3DBlob* signatureBlob = nullptr;
@@ -378,11 +406,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	// マテリアル用のリソースを作る。今回はcolor1つ分のサイズを用意する
 	ID3D12Resource* materialResource = CreateBufferResource(device, sizeof(Vector4));
 	// マテリアルにデータを書き込む
-	Vector4* materialData = nullptr;
+	materialData;
 	// 書き込むためのアドレスを取得
 	materialResource->Map(0, nullptr, reinterpret_cast<void**>(&materialData));
-	// 今回は赤を書き込んでみる
-	*materialData = Vector4(1.0f, 0.0f, 0.0f, 1.0f);
+	// 白色でいく
+	*materialData = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
 
 	ID3D12Resource* vertexResource = CreateBufferResource(device, sizeof(VertexData) * 3);
 
@@ -428,8 +456,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	scissorRect.top = 0;
 	scissorRect.bottom = kClientHeight;
 
-	// Transform変数を作る
-	Transform transform
+	// Transform変数
+	transform = 
 	{
 		{1.0f, 1.0f, 1.0f},
 		{0.0f, 0.0f, 0.0f},
@@ -445,7 +473,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(0.45f, float(kClientWidth) / float(kClientHeight), 0.1f, 100.0f);
 	
 #pragma region テクスチャを読み込む
-
+	bool changedTexture = 0;
 	// Textureを読んで転送する
 	DirectX::ScratchImage mipImages = LoadTexture("Resources/uvChecker.png");
 	const DirectX::TexMetadata& metadata = mipImages.GetMetadata();
@@ -466,7 +494,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	textureSrvHandleGPU.ptr += device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	// SRVの生成
 	device->CreateShaderResourceView(textureResource, &srvDesc, textureSrvHandleCPU);
-
 #pragma endregion
 
 #pragma region ImGui Initialize
@@ -502,7 +529,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 			ImGui::NewFrame();
 
 			// ゲームの処理
-			transform.rotate.y += 0.10f;
+			transform.rotate.y += rotateSpeed;
 
 
 			// WVPMatrixの作成・更新
@@ -512,14 +539,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 			Matrix4x4 worldViewProjectionMatrix =
 				Multiply(worldMatrix, Multiply(viewMatrix, projectionMatrix));
 			*wvpData = worldViewProjectionMatrix;
-			
-			ImGui::SetNextWindowSize(ImVec2(300, 300));
-			ImGui::Begin("Dev");
-			ImGui::PushID("Triangle");
-			ImGui::Text("Triangle Color");
-			ImGui::ColorEdit4("", &materialData->x);
-			ImGui::PopID();
-			ImGui::End();
+
+			ImGuiWindow();
 			
 			ImGui::Render();
 
@@ -575,6 +596,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 			// wvp用CBufferの場所を設定
 			commandList->SetGraphicsRootConstantBufferView(1, wvpResource->GetGPUVirtualAddress());
 
+
+			commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU);
+			
 			// 描画！（DrawCall/ドローコール）。3頂点で1つのインスタンス。インスタンスについては今後
 			commandList->DrawInstanced(3, 1, 0, 0);
 
@@ -848,3 +872,53 @@ void UploadTextureData(ID3D12Resource* _texture, const DirectX::ScratchImage& _m
 		assert(SUCCEEDED(hr));
 	}
 }
+void ImGuiSettingBegin();
+void ImGuiSettingEnd();
+void ImGuiWindow()
+{
+	ImGui::SetNextWindowSize(ImVec2(300, 300));
+	ImGuiSettingBegin();
+	int windowflags = 0;
+	windowflags |= ImGuiWindowFlags_NoResize;
+	ImGui::Begin("Dev", (bool*)false, windowflags);
+	/// begin
+
+	ImGui::BeginTabBar("DEVWINDOW_TABBER");
+
+	if (ImGui::BeginTabItem("Triangle"))
+	{
+		ImGui::PushID("TRIANGLE_TABITEM");
+		ImGui::Spacing();
+		ImGui::Text("Transform");
+		ImGui::DragFloat3("Scale", &transform.scale.x, 0.01f);
+		ImGui::DragFloat3("Rotate", &transform.rotate.x, 0.01f);
+		ImGui::DragFloat3("Translate", &transform.translate.x, 0.01f);
+		ImGui::Spacing();
+		ImGui::DragFloat("Rotate Speed", &rotateSpeed, 0.001f);
+		ImGui::Spacing();
+		ImGui::Text("Material");
+		ImGui::ColorEdit4("Color", &materialData->x);
+		ImGui::PopID();
+
+		ImGui::EndTabItem();
+	}
+
+	ImGui::EndTabBar();
+
+	/// end
+	ImGuiSettingEnd();
+	ImGui::End();
+}
+
+void ImGuiSettingBegin()
+{
+	ImGui::PushStyleColor(ImGuiCol_TitleBgActive, ImU32(0xce5037ff));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+}
+
+void ImGuiSettingEnd()
+{
+	ImGui::PopStyleColor();
+	ImGui::PopStyleVar();
+}
+
