@@ -46,8 +46,9 @@ Vector4* materialData = nullptr;
 Transform transform = {};
 float rotateSpeed = {};
 bool changedTexture = {};
+bool deletedTexture = {};
 char texturePath[128] = {};
-char pathes[512] = "Resources/uvChecker.png\0Resources/img2.png\0Resources/img3.png";
+char pathes[512] = "Resources/uvChecker.png\0Resources/img2.png\0Resources/img3.png\0DeleteTexture";
 int current = 0;
 
 ID3D12Resource* CreateBufferResource(ID3D12Device* _device, size_t _sizeInBytes);
@@ -557,6 +558,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 				device->CreateShaderResourceView(textureResource, &srvDesc, textureSrvHandleCPU);
 				changedTexture = 0;
 			}
+			if (deletedTexture == 1)
+			{
+				metadata.format = 
+
+				deletedTexture = 0;
+			}
 			
 
 			// WVPMatrixの作成・更新
@@ -932,6 +939,10 @@ void ImGuiWindow()
 			if (current == 0) strcpy_s(texturePath, "Resources/uvChecker.png");
 			else if (current == 1) strcpy_s(texturePath, "Resources/img2.png");
 			else if (current == 2) strcpy_s(texturePath, "Resources/img3.png");
+			else if (current == 3)
+			{
+				deletedTexture = 1;
+			}
 		}
 
 		ImGui::ColorEdit4("Color", &materialData->x);
