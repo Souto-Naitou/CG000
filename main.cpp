@@ -45,6 +45,10 @@ IDxcBlob* CompileShader(
 Vector4* materialData = nullptr;
 Transform transform = {};
 float rotateSpeed = {};
+bool changedTexture = {};
+char texturePath[128] = {};
+char pathes[512] = "Resources/uvChecker.png\0Resources/img2.png\0Resources/img3.png";
+int current = 0;
 
 ID3D12Resource* CreateBufferResource(ID3D12Device* _device, size_t _sizeInBytes);
 ID3D12DescriptorHeap* CreateDescriptorHeap(ID3D12Device* _device, D3D12_DESCRIPTOR_HEAP_TYPE _heapType, UINT _numDescriptors, bool _shaderVisible);
@@ -473,7 +477,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(0.45f, float(kClientWidth) / float(kClientHeight), 0.1f, 100.0f);
 	
 #pragma region テクスチャを読み込む
-	bool changedTexture = 0;
 	// Textureを読んで転送する
 	DirectX::ScratchImage mipImages = LoadTexture("Resources/uvChecker.png");
 	const DirectX::TexMetadata& metadata = mipImages.GetMetadata();
@@ -531,6 +534,30 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 			// ゲームの処理
 			transform.rotate.y += rotateSpeed;
 
+			if (changedTexture == 1)
+			{
+				// 開放処理
+				textureResource->Release();
+				// Textureを読んで転送する
+				mipImages = LoadTexture(texturePath);
+				const DirectX::TexMetadata& metadata = mipImages.GetMetadata();
+				textureResource = CreateTextureResource(device, metadata);
+				UploadTextureData(textureResource, mipImages);
+
+				srvDesc.Format = metadata.format;
+				srvDesc.Texture2D.MipLevels = UINT(metadata.mipLevels);
+
+				// SRVを作成するDescriptorHeapの場所を決める
+				textureSrvHandleCPU = srvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+				textureSrvHandleGPU = srvDescriptorHeap->GetGPUDescriptorHandleForHeapStart();
+				// 先頭はImGuiが使っているためその次を使う
+				textureSrvHandleCPU.ptr += device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				textureSrvHandleGPU.ptr += device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				// SRVの生成
+				device->CreateShaderResourceView(textureResource, &srvDesc, textureSrvHandleCPU);
+				changedTexture = 0;
+			}
+			
 
 			// WVPMatrixの作成・更新
 			Matrix4x4 worldMatrix = MakeAffineMatrix(transform.scale, transform.rotate, transform.translate);
@@ -876,7 +903,7 @@ void ImGuiSettingBegin();
 void ImGuiSettingEnd();
 void ImGuiWindow()
 {
-	ImGui::SetNextWindowSize(ImVec2(300, 300));
+	ImGui::SetNextWindowSize(ImVec2(320, 300));
 	ImGuiSettingBegin();
 	int windowflags = 0;
 	windowflags |= ImGuiWindowFlags_NoResize;
@@ -897,6 +924,16 @@ void ImGuiWindow()
 		ImGui::DragFloat("Rotate Speed", &rotateSpeed, 0.001f);
 		ImGui::Spacing();
 		ImGui::Text("Material");
+		int precurrent = current;
+		if (ImGui::Combo(texturePath, &current, pathes))
+		{
+			ZeroMemory(texturePath, 128);
+			if (precurrent != current) changedTexture = 1;
+			if (current == 0) strcpy_s(texturePath, "Resources/uvChecker.png");
+			else if (current == 1) strcpy_s(texturePath, "Resources/img2.png");
+			else if (current == 2) strcpy_s(texturePath, "Resources/img3.png");
+		}
+
 		ImGui::ColorEdit4("Color", &materialData->x);
 		ImGui::PopID();
 
