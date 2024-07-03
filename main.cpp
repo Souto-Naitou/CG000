@@ -44,6 +44,7 @@ IDxcBlob* CompileShader(
 // Grobal
 Vector4* materialData = nullptr;
 Transform transform = {};
+Transform transformSprite = {};
 float rotateSpeed = {};
 
 ID3D12Resource* CreateBufferResource(ID3D12Device* _device, size_t _sizeInBytes);
@@ -443,6 +444,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	// 白色でいく
 	*materialData = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
 
+	// 頂点リソース
 	ID3D12Resource* vertexResource = CreateBufferResource(device, sizeof(VertexData) * vertexCount);
 
 	// 頂点バッファービューを作成する
@@ -476,6 +478,51 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	// 右下2
 	vertexData[5].position = { 0.5f, -0.5f, -0.5f, 1.0f };
 	vertexData[5].texcoord = { 1.0f, 1.0f };
+
+
+	// Sprite用の頂点リソースを作る
+	ID3D12Resource* vertexResourceSprite = CreateBufferResource(device, sizeof(VertexData) * 6);
+
+	// 頂点バッファビューを作成する
+	D3D12_VERTEX_BUFFER_VIEW vertexBufferViewSprite = {};
+	// リソースの先頭のアドレスから使う
+	vertexBufferViewSprite.BufferLocation = vertexResourceSprite->GetGPUVirtualAddress();
+	// 使用するリソースのサイズは頂点６つ分のサイズ
+	vertexBufferViewSprite.SizeInBytes = sizeof(VertexData) * 6;
+	// 1頂点あたりのサイズ
+	vertexBufferViewSprite.StrideInBytes = sizeof(VertexData);
+
+	// 頂点データを設定する
+	VertexData* vertexDataSprite = nullptr;
+	vertexResourceSprite->Map(0, nullptr, reinterpret_cast<void**>(&vertexDataSprite));
+	// 1枚目の三角形
+	vertexDataSprite[0].position = { 0.0f, 360.0f, 0.0f, 1.0f }; // 左下
+	vertexDataSprite[0].texcoord = { 0.0f, 1.0f };
+	vertexDataSprite[1].position = { 0.0f, 0.0f, 0.0f, 1.0f }; // 左上
+	vertexDataSprite[1].texcoord = { 0.0f, 0.0f };
+	vertexDataSprite[2].position = { 640.0f, 360.0f, 0.0f, 1.0f }; // 右下
+	vertexDataSprite[2].texcoord = { 1.0f, 1.0f };
+	// 2枚目の三角形
+	vertexDataSprite[3].position = { 0.0f, 0.0f, 0.0f, 1.0f }; // 左上
+	vertexDataSprite[3].texcoord = { 0.0f, 0.0f };
+	vertexDataSprite[4].position = { 640.0f, 0.0f, 0.0f, 1.0f }; // 右上
+	vertexDataSprite[4].texcoord = { 1.0f, 0.0f };
+	vertexDataSprite[5].position = { 640.0f, 360.0f, 0.0f, 1.0f }; // 右下
+	vertexDataSprite[5].texcoord = { 1.0f, 1.0f };
+
+	// Sprite用のTransformMatrix用のリソースを作る。Matrix4x4の1つ分サイズを用意する
+	ID3D12Resource* transformationMatrixResourceSprite = CreateBufferResource(device, sizeof(Matrix4x4));
+	// データを書き込む
+	Matrix4x4* transformationMatrixDataSprite = nullptr;
+	transformationMatrixResourceSprite->Map(0, nullptr, reinterpret_cast<void**>(&transformationMatrixDataSprite));
+	// 単位行列を書き込んでおく
+	*transformationMatrixDataSprite = MakeIdentity4x4();
+	transformSprite =
+	{
+		.scale = {1.0f, 1.0f, 1.0f},
+		.rotate = {0.0f, 0.0f, 0.0f},
+		.translate = {0.0f, 0.0f, 0.0f}
+	};
 
 
 	// ビューポート
@@ -581,9 +628,14 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 				Multiply(worldMatrix, Multiply(viewMatrix, projectionMatrix));
 			*wvpData = worldViewProjectionMatrix;
 
+			// Sprite用WVPMatrixの作成
+			Matrix4x4 worldMatrixSprite = MakeAffineMatrix(transformSprite.scale, transformSprite.rotate, transformSprite.translate);
+			Matrix4x4 viewMatrixSprite = MakeIdentity4x4();
+			Matrix4x4 projectionMatrixSprite = MakeOrthographicMatrix(0.0f, 0.0f, float(kClientWidth), float(kClientHeight), 0.0f, 100.0f);
+			Matrix4x4 WVPMatrixSprite = Multiply(worldMatrixSprite, Multiply(viewMatrixSprite, projectionMatrixSprite));
+			*transformationMatrixDataSprite = WVPMatrixSprite;
+
 			ImGuiWindow();
-			
-			ImGui::Render();
 
 
 			// ディスクリプタの先頭を取得する
@@ -638,7 +690,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 			// wvp用CBufferの場所を設定
 			commandList->SetGraphicsRootConstantBufferView(1, wvpResource->GetGPUVirtualAddress());
 
-
 			commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU);
 			
 			// 描画先のRTVとDSVを設定する
@@ -647,11 +698,19 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 			// 指定した深度で画面全体をクリアする
 			commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
-
 			// 描画！（DrawCall/ドローコール）。3頂点で1つのインスタンス。インスタンスについては今後
 			commandList->DrawInstanced(vertexCount, 1, 0, 0);
 
-			OutputDebugStringA("aaa");
+			// Spriteの描画。変更が必要なものだけ変更する。
+			commandList->IASetVertexBuffers(0, 1, &vertexBufferViewSprite);
+			// TransformationMatrixCBufferの場所を設定
+			commandList->SetGraphicsRootConstantBufferView(1, transformationMatrixResourceSprite->GetGPUVirtualAddress());
+
+			// 描画！（DrawCall/ドローコール）。3頂点で1つのインスタンス。インスタンスについては今後
+			commandList->DrawInstanced(6, 1, 0, 0);
+
+			// ImGuiの描画
+			ImGui::Render();
 
 			ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), commandList);
 
@@ -698,9 +757,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	ImGui_ImplDX12_Shutdown();
 	ImGui_ImplWin32_Shutdown();
 	ImGui::DestroyContext();
+	transformationMatrixResourceSprite->Release();
 	dsvDescriptorHeap->Release();
 	depthStencilResource->Release();
 	textureResource->Release();
+	vertexResourceSprite->Release();
 	vertexResource->Release();
 	graphicsPipelineState->Release();
 	if (errorBlob) errorBlob->Release();
@@ -974,9 +1035,9 @@ void ImGuiWindow()
 
 	ImGui::BeginTabBar("DEVWINDOW_TABBER");
 
-	if (ImGui::BeginTabItem("TriangleA"))
+	if (ImGui::BeginTabItem("Triangle"))
 	{
-		ImGui::PushID("TRIANGLEA_TABITEM");
+		ImGui::PushID("TRIANGLE_TABITEM");
 		ImGui::Spacing();
 		ImGui::Text("Transform");
 		ImGui::DragFloat3("Scale", &transform.scale.x, 0.01f);
@@ -991,19 +1052,14 @@ void ImGuiWindow()
 
 		ImGui::EndTabItem();
 	}
-	if (ImGui::BeginTabItem("TriangleB"))
+	if (ImGui::BeginTabItem("Sprite"))
 	{
-		ImGui::PushID("TRIANGLEB_TABITEM");
+		ImGui::PushID("SPRITE_TABITEM");
 		ImGui::Spacing();
 		ImGui::Text("Transform");
-		ImGui::DragFloat3("Scale", &transform.scale.x, 0.01f);
-		ImGui::DragFloat3("Rotate", &transform.rotate.x, 0.01f);
-		ImGui::DragFloat3("Translate", &transform.translate.x, 0.01f);
-		ImGui::Spacing();
-		ImGui::DragFloat("Rotate Speed", &rotateSpeed, 0.001f);
-		ImGui::Spacing();
-		ImGui::Text("Material");
-		ImGui::ColorEdit4("Color", &materialData->x);
+		ImGui::DragFloat3("Scale", &transformSprite.scale.x, 0.01f);
+		ImGui::DragFloat3("Rotate", &transformSprite.rotate.x, 0.01f);
+		ImGui::DragFloat3("Translate", &transformSprite.translate.x, 1.0f);
 		ImGui::PopID();
 
 		ImGui::EndTabItem();
