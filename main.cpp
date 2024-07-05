@@ -6,6 +6,7 @@
 #include <format>
 #include <dxcapi.h>
 #include <dxgidebug.h>
+#include <numbers>
 
 #include "externals/imgui/imgui.h"
 #include "externals/imgui/imgui_impl_dx12.h"
@@ -45,6 +46,7 @@ IDxcBlob* CompileShader(
 Vector4* materialData = nullptr;
 Transform transform = {};
 Transform transformSprite = {};
+Transform cameraTransform = {};
 float rotateSpeed = {};
 
 ID3D12Resource* CreateBufferResource(ID3D12Device* _device, size_t _sizeInBytes);
@@ -79,7 +81,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	// クライアント領域のサイズ
 	const int32_t kClientWidth = 1280;
 	const int32_t kClientHeight = 720;
-	unsigned int vertexCount = 6;
+	const uint32_t kSubDivision = 16u;
+	unsigned int vertexCount = kSubDivision * kSubDivision * 6;
 
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - //
 
@@ -460,25 +463,73 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	VertexData* vertexData = nullptr;
 	// 書き込むためのアドレスを取得
 	vertexResource->Map(0, nullptr, reinterpret_cast<void**>(&vertexData));
-	// 左下
-	vertexData[0].position = { -0.5f, -0.5f, 0.0f, 1.0f };
-	vertexData[0].texcoord = { 0.0f, 1.0f };
-	// 上
-	vertexData[1].position = { 0.0f, 0.5f, 0.0f, 1.0f };
-	vertexData[1].texcoord = { 0.5f, 0.0f };
-	// 右下
-	vertexData[2].position = { 0.5f, -0.5f, 0.0f, 1.0f };
-	vertexData[2].texcoord = { 1.0f, 1.0f };
-	// 左下2
-	vertexData[3].position = { -0.5f, -0.5f, 0.5f, 1.0f };
-	vertexData[3].texcoord = { 0.0f, 1.0f };
-	// 上2
-	vertexData[4].position = { 0.0f, 0.0f, 0.0f, 1.0f };
-	vertexData[4].texcoord = { 0.5f, 0.0f };
-	// 右下2
-	vertexData[5].position = { 0.5f, -0.5f, -0.5f, 1.0f };
-	vertexData[5].texcoord = { 1.0f, 1.0f };
 
+	// 経度分割1つ分の角度
+	const float kLonEvery = std::numbers::pi_v<float> * 2.0f / float(kSubDivision);
+	// 緯度分割1つ分の角度
+	const float kLatEvery = std::numbers::pi_v<float> / float(kSubDivision);
+	uint32_t startIndex = 0;
+	// 緯度の方向に分割
+	for (uint32_t latIndex = 0; latIndex < kSubDivision; ++latIndex)
+	{
+		float lat = -std::numbers::pi_v<float> / 2.0f + kLatEvery * latIndex;
+		// 経度の方向に分割しながら線を描く
+		for (uint32_t lonIndex = 0; lonIndex < kSubDivision; ++lonIndex)
+		{
+			float lon = lonIndex * kLonEvery;
+			float u, v;
+
+			// 頂点にデータを入力する。基準点a
+			vertexData[startIndex].position.x = std::cosf(lat) * std::cosf(lon);
+			vertexData[startIndex].position.y = std::sinf(lat);
+			vertexData[startIndex].position.z = std::cosf(lat) * std::sinf(lon);
+			vertexData[startIndex].position.w = 1.0f;
+			u = float(lonIndex) / float(kSubDivision);
+			v = 1.0f - float(latIndex) / float(kSubDivision);
+			vertexData[startIndex++].texcoord = { u, v };
+			// b
+			vertexData[startIndex].position.x = std::cosf(lat + kLatEvery) * std::cosf(lon);
+			vertexData[startIndex].position.y = std::sinf(lat + kLatEvery);
+			vertexData[startIndex].position.z = std::cosf(lat + kLatEvery) * std::sinf(lon);
+			vertexData[startIndex].position.w = 1.0f;
+			u = float(lonIndex) / float(kSubDivision);
+			v = 1.0f - float(latIndex + 1) / float(kSubDivision);
+			vertexData[startIndex++].texcoord = { u, v };
+			// c
+			vertexData[startIndex].position.x = std::cosf(lat) * std::cosf(lon + kLonEvery);
+			vertexData[startIndex].position.y = std::sinf(lat);
+			vertexData[startIndex].position.z = std::cosf(lat) * std::sinf(lon + kLonEvery);
+			vertexData[startIndex].position.w = 1.0f;
+			u = float(lonIndex + 1) / float(kSubDivision);
+			v = 1.0f - float(latIndex) / float(kSubDivision);
+			vertexData[startIndex++].texcoord = { u, v };
+
+			// d
+			vertexData[startIndex].position.x = std::cosf(lat + kLatEvery) * std::cosf(lon + kLonEvery);
+			vertexData[startIndex].position.y = std::sinf(lat + kLatEvery);
+			vertexData[startIndex].position.z = std::cosf(lat + kLatEvery) * std::sinf(lon + kLonEvery);
+			vertexData[startIndex].position.w = 1.0f;
+			u = float(lonIndex + 1) / float(kSubDivision);
+			v = 1.0f - float(latIndex + 1) / float(kSubDivision);
+			vertexData[startIndex++].texcoord = { u, v };
+			// c2
+			vertexData[startIndex].position.x = std::cosf(lat) * std::cosf(lon + kLonEvery);
+			vertexData[startIndex].position.y = std::sinf(lat);
+			vertexData[startIndex].position.z = std::cosf(lat) * std::sinf(lon + kLonEvery);
+			vertexData[startIndex].position.w = 1.0f;
+			u = float(lonIndex + 1) / float(kSubDivision);
+			v = 1.0f - float(latIndex) / float(kSubDivision);
+			vertexData[startIndex++].texcoord = { u, v };
+			// b2
+			vertexData[startIndex].position.x = std::cosf(lat + kLatEvery) * std::cosf(lon);
+			vertexData[startIndex].position.y = std::sinf(lat + kLatEvery);
+			vertexData[startIndex].position.z = std::cosf(lat + kLatEvery) * std::sinf(lon);
+			vertexData[startIndex].position.w = 1.0f;
+			u = float(lonIndex) / float(kSubDivision);
+			v = 1.0f - float(latIndex + 1) / float(kSubDivision);
+			vertexData[startIndex++].texcoord = { u, v };
+		}
+	}
 
 	// Sprite用の頂点リソースを作る
 	ID3D12Resource* vertexResourceSprite = CreateBufferResource(device, sizeof(VertexData) * 6);
@@ -524,7 +575,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		.translate = {0.0f, 0.0f, 0.0f}
 	};
 
-
 	// ビューポート
 	D3D12_VIEWPORT viewport{};
 	// クライアント領域のサイズと一緒にして画面全体に表示
@@ -550,11 +600,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		{0.0f, 0.0f, 0.0f},
 		{0.0f, 0.0f, 0.0f}
 	};
-	Transform cameraTransform
+	cameraTransform = 
 	{
 		{1.0f, 1.0f, 1.0f},
 		{0.0f, 0.0f, 0.0f},
-		{0.0f, 0.0f, -5.0f}
+		{0.0f, 0.0f, -10.0f}
 	};
 
 	Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(0.45f, float(kClientWidth) / float(kClientHeight), 0.1f, 100.0f);
@@ -1060,6 +1110,17 @@ void ImGuiWindow()
 		ImGui::DragFloat3("Scale", &transformSprite.scale.x, 0.01f);
 		ImGui::DragFloat3("Rotate", &transformSprite.rotate.x, 0.01f);
 		ImGui::DragFloat3("Translate", &transformSprite.translate.x, 1.0f);
+		ImGui::PopID();
+
+		ImGui::EndTabItem();
+	}
+	if (ImGui::BeginTabItem("Camera"))
+	{
+		ImGui::PushID("CAMERA_TABITEM");
+		ImGui::Spacing();
+		ImGui::Text("Transform");
+		ImGui::DragFloat3("Rotate", &cameraTransform.rotate.x, 0.01f);
+		ImGui::DragFloat3("Translate", &cameraTransform.translate.x, 0.01f);
 		ImGui::PopID();
 
 		ImGui::EndTabItem();
