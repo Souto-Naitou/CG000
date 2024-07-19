@@ -48,6 +48,7 @@ Transform transform = {};
 Transform transformSprite = {};
 Transform cameraTransform = {};
 float rotateSpeed = {};
+bool useMonsterBall = {};
 
 ID3D12Resource* CreateBufferResource(ID3D12Device* _device, size_t _sizeInBytes);
 ID3D12DescriptorHeap* CreateDescriptorHeap(ID3D12Device* _device, D3D12_DESCRIPTOR_HEAP_TYPE _heapType, UINT _numDescriptors, bool _shaderVisible);
@@ -55,6 +56,8 @@ DirectX::ScratchImage LoadTexture(const std::string _filePath);
 ID3D12Resource* CreateTextureResource(ID3D12Device* _device, const DirectX::TexMetadata& _metadata);
 void UploadTextureData(ID3D12Resource* _texture, const DirectX::ScratchImage& _mipImages);
 ID3D12Resource* CreateDepthStencilTextureResource(ID3D12Device*, int32_t _width, int32_t _height);
+D3D12_CPU_DESCRIPTOR_HANDLE GetCPUDescriptorHandle(ID3D12DescriptorHeap* _descriptorHeap, uint32_t _descriptorSize, uint32_t _index);
+D3D12_GPU_DESCRIPTOR_HANDLE GetGPUDescriptorHandle(ID3D12DescriptorHeap* _descriptorHeap, uint32_t _descriptorSize, uint32_t _index);
 void ImGuiWindow();
 
 // Windowsアプリでのエントリポイント
@@ -180,7 +183,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	ID3D12InfoQueue* infoQueue = nullptr;
 	if (SUCCEEDED(device->QueryInterface(IID_PPV_ARGS(&infoQueue))))
 	{
-		// やばいエラー時に止まる　？？？「やばいわよっ！」
+		// やばいエラー時に止まる　
 		infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, true);
 		// エラー時に止まる <- 解放忘れが判明したら、コメントアウト
 		infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, true);
@@ -207,7 +210,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	}
 #endif // _DEBUG
 
-
+	const uint32_t kDescriptorSizeSRV = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	const uint32_t kDescriptorSizeRTV = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+	const uint32_t kDescriptorSizeDSV = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 
 	// 出力ウィンドウへの文字出力
 	Log(std::format("Hello, {}\n", "DirectX!"));
@@ -613,25 +618,34 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 #pragma region テクスチャを読み込む
 	bool changedTexture = 0;
 	// Textureを読んで転送する
-	DirectX::ScratchImage mipImages = LoadTexture("Resources/uvChecker.png");
-	const DirectX::TexMetadata& metadata = mipImages.GetMetadata();
-	ID3D12Resource* textureResource = CreateTextureResource(device, metadata);
-	UploadTextureData(textureResource, mipImages);
+	DirectX::ScratchImage mipImages1 = LoadTexture("Resources/uvChecker.png");
+	DirectX::ScratchImage mipImages2 = LoadTexture("resources/monsterBall.png");
+	const DirectX::TexMetadata& metadata1 = mipImages1.GetMetadata();
+	const DirectX::TexMetadata& metadata2 = mipImages2.GetMetadata();
+	ID3D12Resource* textureResource1 = CreateTextureResource(device, metadata1);
+	ID3D12Resource* textureResource2 = CreateTextureResource(device, metadata2);
+	UploadTextureData(textureResource1, mipImages1);
+	UploadTextureData(textureResource2, mipImages2);
 
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
-	srvDesc.Format = metadata.format;
-	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D; // 2Dテクスチャ
-	srvDesc.Texture2D.MipLevels = UINT(metadata.mipLevels);
+	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc1{};
+	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc2{};
+	srvDesc1.Format = metadata1.format;
+	srvDesc2.Format = metadata2.format;
+	srvDesc1.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	srvDesc2.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	srvDesc1.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D; // 2Dテクスチャ
+	srvDesc2.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D; // 2Dテクスチャ
+	srvDesc1.Texture2D.MipLevels = UINT(metadata1.mipLevels);
+	srvDesc2.Texture2D.MipLevels = UINT(metadata2.mipLevels);
 
 	// SRVを作成するDescriptorHeapの場所を決める
-	D3D12_CPU_DESCRIPTOR_HANDLE textureSrvHandleCPU = srvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-	D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandleGPU = srvDescriptorHeap->GetGPUDescriptorHandleForHeapStart();
-	// 先頭はImGuiが使っているためその次を使う
-	textureSrvHandleCPU.ptr += device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-	textureSrvHandleGPU.ptr += device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	D3D12_CPU_DESCRIPTOR_HANDLE textureSrvHandleCPU1 = GetCPUDescriptorHandle(srvDescriptorHeap, kDescriptorSizeSRV, 1);
+	D3D12_CPU_DESCRIPTOR_HANDLE textureSrvHandleCPU2 = GetCPUDescriptorHandle(srvDescriptorHeap, kDescriptorSizeSRV, 2);
+	D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandleGPU1 = GetGPUDescriptorHandle(srvDescriptorHeap, kDescriptorSizeSRV, 1);
+	D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandleGPU2 = GetGPUDescriptorHandle(srvDescriptorHeap, kDescriptorSizeSRV, 2);
 	// SRVの生成
-	device->CreateShaderResourceView(textureResource, &srvDesc, textureSrvHandleCPU);
+	device->CreateShaderResourceView(textureResource1, &srvDesc1, textureSrvHandleCPU1);
+	device->CreateShaderResourceView(textureResource2, &srvDesc2, textureSrvHandleCPU2);
 #pragma endregion
 
 #pragma region ImGui Initialize
@@ -740,7 +754,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 			// wvp用CBufferの場所を設定
 			commandList->SetGraphicsRootConstantBufferView(1, wvpResource->GetGPUVirtualAddress());
 
-			commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU);
+			commandList->SetGraphicsRootDescriptorTable(2, useMonsterBall ? textureSrvHandleGPU2 : textureSrvHandleGPU1);
 			
 			// 描画先のRTVとDSVを設定する
 			D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = dsvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
@@ -748,15 +762,17 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 			// 指定した深度で画面全体をクリアする
 			commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
-			// 描画！（DrawCall/ドローコール）。3頂点で1つのインスタンス。インスタンスについては今後
+			// 描画！（DrawCall/ドローコール）。頂点
 			commandList->DrawInstanced(vertexCount, 1, 0, 0);
 
 			// Spriteの描画。変更が必要なものだけ変更する。
 			commandList->IASetVertexBuffers(0, 1, &vertexBufferViewSprite);
 			// TransformationMatrixCBufferの場所を設定
 			commandList->SetGraphicsRootConstantBufferView(1, transformationMatrixResourceSprite->GetGPUVirtualAddress());
+			// SRVの設定
+			commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU1);
 
-			// 描画！（DrawCall/ドローコール）。3頂点で1つのインスタンス。インスタンスについては今後
+			// 描画！（DrawCall/ドローコール）。スプライト
 			commandList->DrawInstanced(6, 1, 0, 0);
 
 			// ImGuiの描画
@@ -810,7 +826,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	transformationMatrixResourceSprite->Release();
 	dsvDescriptorHeap->Release();
 	depthStencilResource->Release();
-	textureResource->Release();
+	textureResource1->Release();
+	textureResource2->Release();
 	vertexResourceSprite->Release();
 	vertexResource->Release();
 	graphicsPipelineState->Release();
@@ -1072,6 +1089,22 @@ ID3D12Resource* CreateDepthStencilTextureResource(ID3D12Device* _device, int32_t
 
 	return resource;
 }
+D3D12_CPU_DESCRIPTOR_HANDLE GetCPUDescriptorHandle(ID3D12DescriptorHeap* _descriptorHeap, uint32_t _descriptorSize, uint32_t _index)
+{
+	D3D12_CPU_DESCRIPTOR_HANDLE handleCPU = _descriptorHeap->GetCPUDescriptorHandleForHeapStart();
+	handleCPU.ptr += (_descriptorSize * _index); // ポインタをヒープの始めからインデックス分インクリメント
+	return handleCPU;
+}
+
+D3D12_GPU_DESCRIPTOR_HANDLE GetGPUDescriptorHandle(ID3D12DescriptorHeap* _descriptorHeap, uint32_t _descriptorSize, uint32_t _index)
+{
+	D3D12_GPU_DESCRIPTOR_HANDLE handleGPU = _descriptorHeap->GetGPUDescriptorHandleForHeapStart();
+	handleGPU.ptr += (_descriptorSize * _index);
+	return handleGPU;
+}
+
+
+
 void ImGuiSettingBegin();
 void ImGuiSettingEnd();
 void ImGuiWindow()
@@ -1085,9 +1118,9 @@ void ImGuiWindow()
 
 	ImGui::BeginTabBar("DEVWINDOW_TABBER");
 
-	if (ImGui::BeginTabItem("Triangle"))
+	if (ImGui::BeginTabItem("Sphere"))
 	{
-		ImGui::PushID("TRIANGLE_TABITEM");
+		ImGui::PushID("SPHERE_TABITEM");
 		ImGui::Spacing();
 		ImGui::Text("Transform");
 		ImGui::DragFloat3("Scale", &transform.scale.x, 0.01f);
@@ -1098,6 +1131,7 @@ void ImGuiWindow()
 		ImGui::Spacing();
 		ImGui::Text("Material");
 		ImGui::ColorEdit4("Color", &materialData->x);
+		ImGui::Checkbox("Use MonsterBall.png", &useMonsterBall);
 		ImGui::PopID();
 
 		ImGui::EndTabItem();
