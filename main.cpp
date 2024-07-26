@@ -54,6 +54,7 @@ sTransform cameraTransform = {};
 float rotateSpeed = {};
 bool useMonsterBall = {};
 bool lightingWindow = {};
+bool isDrawSprite = {};
 
 const char* textureNameList[] = 
 {
@@ -842,7 +843,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 			commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU1);
 
 			// 描画！（DrawCall/ドローコール）。スプライト
-			commandList->DrawInstanced(6, 1, 0, 0);
+			if (isDrawSprite)
+				commandList->DrawInstanced(6, 1, 0, 0);
 
 			// ImGuiの描画
 			ImGui::Render();
@@ -1244,6 +1246,7 @@ void ImGuiWindow()
 	{
 		ImGui::PushID("SPRITE_TABITEM");
 		ImGui::Spacing();
+		ImGui::Checkbox("Enable", &isDrawSprite);
 		ImGui::Text("Transform");
 		ImGui::DragFloat3("Scale", &transformSprite.scale.x, 0.01f);
 		ImGui::DragFloat3("Rotate", &transformSprite.rotate.x, 0.01f);
