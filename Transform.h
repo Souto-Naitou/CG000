@@ -1,7 +1,7 @@
 #pragma once
 #include "math/Vector3.h"
 
-struct Transform final
+struct sTransform final
 {
 	Vector3 scale;
 	Vector3 rotate;
