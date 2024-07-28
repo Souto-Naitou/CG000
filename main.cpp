@@ -51,10 +51,13 @@ DirectionalLight* dirLightData = nullptr;
 sTransform transform = {};
 sTransform transformSprite = {};
 sTransform cameraTransform = {};
+sTransform uvTransformSprite = { {1.0f, 1.0f, 1.0f} };
+
 float rotateSpeed = {};
 bool useMonsterBall = {};
 bool lightingWindow = {};
 bool isDrawSprite = {};
+bool isDrawSphere = {1};
 
 const char* textureNameList[] = 
 {
@@ -72,6 +75,7 @@ ID3D12Resource* CreateDepthStencilTextureResource(ID3D12Device*, int32_t _width,
 D3D12_CPU_DESCRIPTOR_HANDLE GetCPUDescriptorHandle(ID3D12DescriptorHeap* _descriptorHeap, uint32_t _descriptorSize, uint32_t _index);
 D3D12_GPU_DESCRIPTOR_HANDLE GetGPUDescriptorHandle(ID3D12DescriptorHeap* _descriptorHeap, uint32_t _descriptorSize, uint32_t _index);
 void ImGuiWindow();
+void ImGuiTemplateTransform(const char* _id, float* _scale, float* _rotate, float* _translate);
 
 // Windowsアプリでのエントリポイント
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
@@ -472,6 +476,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	// 白色でいく
 	materialData->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
 	materialData->enableLighting = false;
+	materialData->uvTransform = MakeIdentity4x4();
 
 	// WVP用のリソースを作る。Matrix4x4 一つ分のサイズを用意する
 	ID3D12Resource* wvpResource = CreateBufferResource(device, sizeof(TransformationMatrix));
@@ -601,6 +606,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 	materialDataSprite->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
 	materialDataSprite->enableLighting = false;
+	materialDataSprite->uvTransform = MakeIdentity4x4();
 
 	// 頂点リソースを作成
 	ID3D12Resource* indexResourceSprite = CreateBufferResource(device, sizeof(uint32_t) * 6);
@@ -775,6 +781,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 			Matrix4x4 WVPMatrixSprite = Multiply(worldMatrixSprite, Multiply(viewMatrixSprite, projectionMatrixSprite));
 			transformationMatrixDataSprite->WVP = WVPMatrixSprite;
 
+			Matrix4x4 uvTransformMatrix = MakeScaleMatrix(uvTransformSprite.scale);
+			uvTransformMatrix = Multiply(uvTransformMatrix, MakeRotateZMatrix(uvTransformSprite.rotate.z));
+			uvTransformMatrix = Multiply(uvTransformMatrix, MakeTranslateMatrix(uvTransformSprite.translate));
+			materialDataSprite->uvTransform = uvTransformMatrix;
+
 			ImGuiWindow();
 
 
@@ -842,7 +853,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 			commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
 			// 描画！（DrawCall/ドローコール）。頂点
-			commandList->DrawInstanced(vertexCount, 1, 0, 0);
+			if (isDrawSphere)
+				commandList->DrawInstanced(vertexCount, 1, 0, 0);
 
 			// Spriteの描画。変更が必要なものだけ変更する。
 			commandList->IASetVertexBuffers(0, 1, &vertexBufferViewSprite);
@@ -1194,10 +1206,12 @@ void ImGuiSettingBegin();
 void ImGuiSettingEnd();
 void ImGuiWindow()
 {
-	ImGui::SetNextWindowSize(ImVec2(300, 350));
+	ImGui::SetNextWindowPos(ImVec2(980, 0));
+	ImGui::SetNextWindowSize(ImVec2(300, 720));
 	ImGuiSettingBegin();
 	int windowflags = 0;
 	windowflags |= ImGuiWindowFlags_NoResize;
+	windowflags |= ImGuiWindowFlags_NoTitleBar;
 	ImGui::Begin("Dev", (bool*)false, windowflags);
 	/// begin
 
@@ -1208,48 +1222,61 @@ void ImGuiWindow()
 		ImGui::PushID("SPHERE_TABITEM");
 		ImGui::Spacing();
 
-		ImGui::Text("Transform");
-		ImGui::DragFloat3("Scale", &transform.scale.x, 0.01f);
-		ImGui::DragFloat3("Rotate", &transform.rotate.x, 0.01f);
-		ImGui::DragFloat3("Translate", &transform.translate.x, 0.01f);
-		ImGui::Spacing();
-		ImGui::DragFloat("Rotate Speed", &rotateSpeed, 0.001f);
+		ImGui::Checkbox("Enable", &isDrawSphere);
 		ImGui::Spacing();
 
-		ImGui::Text("Material");
-		ImGui::ColorEdit4("Color", &materialData->color.x);
-		if (ImGui::Button("Select Texture"))
-			ImGui::OpenPopup("SELECT_TEXTURE");
-		if (ImGui::BeginPopup("SELECT_TEXTURE"))
+		if(ImGui::CollapsingHeader("Transform"))
 		{
-			ImGui::BeginListBox("Texture List", ImVec2(150, 60));
-			for (int i = 0; i < IM_ARRAYSIZE(textureNameList); i++)
+			ImGuiTemplateTransform("SPHERE_TRANSFORM", &transform.scale.x, &transform.rotate.x, &transform.translate.x);
+			ImGui::DragFloat("Rotate Speed", &rotateSpeed, 0.001f);
+		}
+		ImGui::Spacing();
+
+		if(ImGui::CollapsingHeader("Material"))
+		{
+			ImGui::Spacing();
+			ImGui::PushID("SPHERE_MATERIAL");
+			ImGui::ColorEdit4("Color", &materialData->color.x);
+			if (ImGui::Button("Select Texture"))
+				ImGui::OpenPopup("SELECT_TEXTURE");
+			if (ImGui::BeginPopup("SELECT_TEXTURE"))
 			{
-				const bool isSelect = selectedIndexTextureNameList == i;
-				if (ImGui::Selectable(textureNameList[i], isSelect))
+				ImGui::BeginListBox("Texture List", ImVec2(150, 60));
+				for (int i = 0; i < IM_ARRAYSIZE(textureNameList); i++)
 				{
-					selectedIndexTextureNameList = i;
+					const bool isSelect = selectedIndexTextureNameList == i;
+					if (ImGui::Selectable(textureNameList[i], isSelect))
+					{
+						selectedIndexTextureNameList = i;
+					}
+
+					if (isSelect)
+						ImGui::SetItemDefaultFocus();
 				}
+				if (selectedIndexTextureNameList == 0) useMonsterBall = false;
+				else useMonsterBall = true;
+				ImGui::EndListBox();
 
-				if (isSelect)
-					ImGui::SetItemDefaultFocus();
+				ImGui::EndPopup();
 			}
-			if (selectedIndexTextureNameList == 0) useMonsterBall = false;
-			else useMonsterBall = true;
-			ImGui::EndListBox();
 
-			ImGui::EndPopup();
+			ImGui::PopID();
 		}
 		ImGui::Spacing();
 
-		ImGui::Text("Lighting");
-		ImGui::Checkbox("Enable Lighting", reinterpret_cast<bool*>(&materialData->enableLighting));
-		if (ImGui::DragFloat3("Direction", &dirLightData->direction.x, 0.01f))
+		if(ImGui::CollapsingHeader("Lighting"))
 		{
-			dirLightData->direction = Normalize(dirLightData->direction);
+			ImGui::Spacing();
+			ImGui::PushID("SPHERE_LIGHTING");
+			ImGui::Checkbox("Enable Lighting", reinterpret_cast<bool*>(&materialData->enableLighting));
+			if (ImGui::DragFloat3("Direction", &dirLightData->direction.x, 0.01f))
+			{
+				dirLightData->direction = Normalize(dirLightData->direction);
+			}
+			ImGui::ColorEdit4("Color", &dirLightData->color.x);
+			ImGui::PopID();
 		}
-		ImGui::ColorEdit4("Color", &dirLightData->color.x);
-
+		ImGui::Spacing();
 
 		ImGui::PopID();
 		ImGui::EndTabItem();
@@ -1258,13 +1285,31 @@ void ImGuiWindow()
 	{
 		ImGui::PushID("SPRITE_TABITEM");
 		ImGui::Spacing();
-		ImGui::Checkbox("Enable", &isDrawSprite);
-		ImGui::Text("Transform");
-		ImGui::DragFloat3("Scale", &transformSprite.scale.x, 0.01f);
-		ImGui::DragFloat3("Rotate", &transformSprite.rotate.x, 0.01f);
-		ImGui::DragFloat3("Translate", &transformSprite.translate.x, 1.0f);
-		ImGui::PopID();
 
+		ImGui::Checkbox("Enable", &isDrawSprite);
+		ImGui::Spacing();
+
+		if (ImGui::CollapsingHeader("Transform"))
+		{
+			ImGui::Spacing();
+			ImGui::DragFloat3("Scale", &transformSprite.scale.x, 0.01f);
+			ImGui::DragFloat3("Rotate", &transformSprite.rotate.x, 0.01f);
+			ImGui::DragFloat3("Translate", &transformSprite.translate.x, 1.0f);
+		}
+		ImGui::Spacing();
+
+		if (ImGui::CollapsingHeader("UV Transform"))
+		{
+			ImGui::Spacing();
+			ImGui::PushID("UV_TRANSFORM");
+			ImGui::DragFloat2("Scale", &uvTransformSprite.scale.x, 0.01f, -10.0f, 10.0f);
+			ImGui::SliderAngle("Rotate", &uvTransformSprite.rotate.z);
+			ImGui::DragFloat2("Translate", &uvTransformSprite.translate.x, 0.01f, -10.0f, 10.0f);
+			ImGui::PopID();
+		}
+		ImGui::Spacing();
+
+		ImGui::PopID();
 		ImGui::EndTabItem();
 	}
 	if (ImGui::BeginTabItem("Camera"))
@@ -1289,12 +1334,26 @@ void ImGuiWindow()
 void ImGuiSettingBegin()
 {
 	ImGui::PushStyleColor(ImGuiCol_TitleBgActive, ImU32(0xce5037ff));
+	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImU32(0xff050505));
+	ImGui::PushStyleColor(ImGuiCol_Header, ImU32(0xff551906));
+	ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImU32(0xff440606));
+	ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImU32(0xff250606));
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
 }
 
 void ImGuiSettingEnd()
 {
-	ImGui::PopStyleColor();
+	ImGui::PopStyleColor(5);
 	ImGui::PopStyleVar();
 }
 
+void ImGuiTemplateTransform(const char* _id, float* _scale, float* _rotate, float* _translate)
+{
+	ImGui::PushID(_id);
+	ImGui::Spacing();
+	ImGui::DragFloat3("Scale", _scale, 0.01f);
+	ImGui::DragFloat3("Rotate", _rotate, 0.01f);
+	ImGui::DragFloat3("Translate", _translate, 0.01f);
+	ImGui::Spacing();
+	ImGui::PopID();
+}
