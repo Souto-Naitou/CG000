@@ -4,6 +4,8 @@
 #include "math/Vector3.h"
 #include "Matrix4x4.h"
 
+#include <vector>
+
 struct VertexData
 {
 	Vector4 position;
@@ -30,4 +32,9 @@ struct DirectionalLight
 	Vector4 color; //!< ライトの色
 	Vector3 direction; //!< ライトの向き (正規化必須)
 	float intensity; //!< 輝度
+};
+
+struct ModelData
+{
+	std::vector<VertexData> vertices;
 };
