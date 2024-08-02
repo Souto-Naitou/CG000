@@ -1,0 +1,86 @@
+## 球の頂点の作成
+
+	// 経度分割1つ分の角度
+	const float kLonEvery = std::numbers::pi_v<float> * 2.0f / float(kSubDivision);
+	// 緯度分割1つ分の角度
+	const float kLatEvery = std::numbers::pi_v<float> / float(kSubDivision);
+	uint32_t startIndex = 0;
+	// 緯度の方向に分割
+	for (uint32_t latIndex = 0; latIndex < kSubDivision; ++latIndex)
+	{
+		float lat = -std::numbers::pi_v<float> / 2.0f + kLatEvery * latIndex;
+		// 経度の方向に分割しながら線を描く
+		for (uint32_t lonIndex = 0; lonIndex < kSubDivision; ++lonIndex)
+		{
+			float lon = lonIndex * kLonEvery;
+			float u, v;
+
+			// 頂点にデータを入力する。基準点a
+			vertexData[startIndex].position.x = std::cosf(lat) * std::cosf(lon);
+			vertexData[startIndex].position.y = std::sinf(lat);
+			vertexData[startIndex].position.z = std::cosf(lat) * std::sinf(lon);
+			vertexData[startIndex].position.w = 1.0f;
+			vertexData[startIndex].normal.x = vertexData[startIndex].position.x;
+			vertexData[startIndex].normal.y = vertexData[startIndex].position.y;
+			vertexData[startIndex].normal.z = vertexData[startIndex].position.z;
+			u = float(lonIndex) / float(kSubDivision);
+			v = 1.0f - float(latIndex) / float(kSubDivision);
+			vertexData[startIndex++].texcoord = { u, v };
+			// b
+			vertexData[startIndex].position.x = std::cosf(lat + kLatEvery) * std::cosf(lon);
+			vertexData[startIndex].position.y = std::sinf(lat + kLatEvery);
+			vertexData[startIndex].position.z = std::cosf(lat + kLatEvery) * std::sinf(lon);
+			vertexData[startIndex].position.w = 1.0f;
+			vertexData[startIndex].normal.x = vertexData[startIndex].position.x;
+			vertexData[startIndex].normal.y = vertexData[startIndex].position.y;
+			vertexData[startIndex].normal.z = vertexData[startIndex].position.z;
+			u = float(lonIndex) / float(kSubDivision);
+			v = 1.0f - float(latIndex + 1) / float(kSubDivision);
+			vertexData[startIndex++].texcoord = { u, v };
+			// c
+			vertexData[startIndex].position.x = std::cosf(lat) * std::cosf(lon + kLonEvery);
+			vertexData[startIndex].position.y = std::sinf(lat);
+			vertexData[startIndex].position.z = std::cosf(lat) * std::sinf(lon + kLonEvery);
+			vertexData[startIndex].position.w = 1.0f;
+			vertexData[startIndex].normal.x = vertexData[startIndex].position.x;
+			vertexData[startIndex].normal.y = vertexData[startIndex].position.y;
+			vertexData[startIndex].normal.z = vertexData[startIndex].position.z;
+			u = float(lonIndex + 1) / float(kSubDivision);
+			v = 1.0f - float(latIndex) / float(kSubDivision);
+			vertexData[startIndex++].texcoord = { u, v };
+
+			// d
+			vertexData[startIndex].position.x = std::cosf(lat + kLatEvery) * std::cosf(lon + kLonEvery);
+			vertexData[startIndex].position.y = std::sinf(lat + kLatEvery);
+			vertexData[startIndex].position.z = std::cosf(lat + kLatEvery) * std::sinf(lon + kLonEvery);
+			vertexData[startIndex].position.w = 1.0f;
+			vertexData[startIndex].normal.x = vertexData[startIndex].position.x;
+			vertexData[startIndex].normal.y = vertexData[startIndex].position.y;
+			vertexData[startIndex].normal.z = vertexData[startIndex].position.z;
+			u = float(lonIndex + 1) / float(kSubDivision);
+			v = 1.0f - float(latIndex + 1) / float(kSubDivision);
+			vertexData[startIndex++].texcoord = { u, v };
+			// c2
+			vertexData[startIndex].position.x = std::cosf(lat) * std::cosf(lon + kLonEvery);
+			vertexData[startIndex].position.y = std::sinf(lat);
+			vertexData[startIndex].position.z = std::cosf(lat) * std::sinf(lon + kLonEvery);
+			vertexData[startIndex].position.w = 1.0f;
+			vertexData[startIndex].normal.x = vertexData[startIndex].position.x;
+			vertexData[startIndex].normal.y = vertexData[startIndex].position.y;
+			vertexData[startIndex].normal.z = vertexData[startIndex].position.z;
+			u = float(lonIndex + 1) / float(kSubDivision);
+			v = 1.0f - float(latIndex) / float(kSubDivision);
+			vertexData[startIndex++].texcoord = { u, v };
+			// b2
+			vertexData[startIndex].position.x = std::cosf(lat + kLatEvery) * std::cosf(lon);
+			vertexData[startIndex].position.y = std::sinf(lat + kLatEvery);
+			vertexData[startIndex].position.z = std::cosf(lat + kLatEvery) * std::sinf(lon);
+			vertexData[startIndex].position.w = 1.0f;
+			vertexData[startIndex].normal.x = vertexData[startIndex].position.x;
+			vertexData[startIndex].normal.y = vertexData[startIndex].position.y;
+			vertexData[startIndex].normal.z = vertexData[startIndex].position.z;
+			u = float(lonIndex) / float(kSubDivision);
+			v = 1.0f - float(latIndex + 1) / float(kSubDivision);
+			vertexData[startIndex++].texcoord = { u, v };
+		}
+	}

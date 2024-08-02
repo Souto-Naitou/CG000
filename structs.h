@@ -5,6 +5,7 @@
 #include "Matrix4x4.h"
 
 #include <vector>
+#include <string>
 
 struct VertexData
 {
@@ -34,7 +35,13 @@ struct DirectionalLight
 	float intensity; //!< 輝度
 };
 
+struct MaterialData
+{
+	std::string textureFilePath;
+};
+
 struct ModelData
 {
 	std::vector<VertexData> vertices;
+	MaterialData material;
 };

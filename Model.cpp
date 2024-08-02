@@ -26,6 +26,7 @@ ModelData LoadObjFile(const std::string& _directoryPath, const std::string& _fil
         {
             Vector4 position;
             s >> position.x >> position.y >> position.z;
+            position.x *= -1.0f;
             position.w = 1.0f;
             positions.push_back(position);
         }
@@ -33,16 +34,19 @@ ModelData LoadObjFile(const std::string& _directoryPath, const std::string& _fil
         {
             Vector2 texcoord;
             s >> texcoord.x >> texcoord.y;
+            texcoord.y *= -1.0f;
             texcoords.push_back(texcoord);
         }
         else if (identifier == "vn")
         {
             Vector3 normal;
             s >> normal.x >> normal.y >> normal.z;
+            normal.x *= -1.0f;
             normals.push_back(normal);
         }
         else if (identifier == "f")
         {
+            VertexData triangle[3];
             // 面は三角形限定。その他は未対応
             for (int32_t faceVertex = 0; faceVertex < 3; ++faceVertex)
             {
@@ -61,11 +65,51 @@ ModelData LoadObjFile(const std::string& _directoryPath, const std::string& _fil
                 Vector4 position = positions[elementIndices[0] - 1];
                 Vector2 texcoord = texcoords[elementIndices[1] - 1];
                 Vector3 normal = normals[elementIndices[2] - 1];
-                VertexData vertex = { position, texcoord, normal };
-                modelData.vertices.push_back(vertex);
+                //VertexData vertex = { position, texcoord, normal };
+                //modelData.vertices.push_back(vertex);
+                triangle[faceVertex] = { position, texcoord, normal };
             }
+            modelData.vertices.push_back(triangle[2]);
+            modelData.vertices.push_back(triangle[1]);
+            modelData.vertices.push_back(triangle[0]);
+        }
+        else if (identifier == "mtllib")
+        {
+            // materialTemplateLibraryファイルの名前を取得
+            std::string materialFilename;
+            s >> materialFilename;
+            // 基本的にobjファイルと同一階層にmtlを配置するためディレクトリ名とファイル名を渡す
+            modelData.material = LoadMaterialTemplateFile(_directoryPath, materialFilename);
         }
     }
     // 4 Return ModelData
     return modelData;
+}
+
+MaterialData LoadMaterialTemplateFile(const std::string& _directoryPath, const std::string& _filename)
+{
+    // 1 Decleare variable
+    MaterialData materialData;
+    std::string line;
+    // 2 Open file
+    std::ifstream file(_directoryPath + "/" + _filename);
+    assert(file.is_open());
+    // 3 Read file and construct MaterialData
+    while (std::getline(file, line))
+    {
+        std::string identifier;
+        std::istringstream s(line);
+        s >> identifier;
+
+        // identifierに応じた処理
+        if (identifier == "map_Kd")
+        {
+            std::string textureFilename;
+            s >> textureFilename;
+            // 連結してファイルパスに
+            materialData.textureFilePath = _directoryPath + "/" + textureFilename;
+        }
+    }
+    // 4 Return MaterialData
+    return materialData;
 }

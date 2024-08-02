@@ -25,6 +25,7 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg
 #include "Transform.h"
 #include "Matrix4x4/calc/matrix4calc.h"
 #include "Vector3/calc/vector3calc.h"
+#include "Model.h"
 
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -54,17 +55,20 @@ sTransform cameraTransform = {};
 sTransform uvTransformSprite = { {1.0f, 1.0f, 1.0f} };
 
 float rotateSpeed = {};
-bool useMonsterBall = {};
 bool lightingWindow = {};
 bool isDrawSprite = {};
 bool isDrawSphere = {1};
 
-const char* textureNameList[] = 
-{
-	"uvChecker.png",
-	"MonsterBall.png",
-};
+const unsigned int numTextureNameList = 3;
+
+std::vector<std::string> textureNameList;
+
 unsigned int selectedIndexTextureNameList = 0;
+std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> textureSrvHandleCPUs;
+std::vector<D3D12_GPU_DESCRIPTOR_HANDLE> textureSrvHandleGPUs;
+std::vector<ID3D12Resource*> textureResources;
+int numUploadedTexture = 0;
+
 
 ID3D12Resource* CreateBufferResource(ID3D12Device* _device, size_t _sizeInBytes);
 ID3D12DescriptorHeap* CreateDescriptorHeap(ID3D12Device* _device, D3D12_DESCRIPTOR_HEAP_TYPE _heapType, UINT _numDescriptors, bool _shaderVisible);
@@ -76,6 +80,7 @@ D3D12_CPU_DESCRIPTOR_HANDLE GetCPUDescriptorHandle(ID3D12DescriptorHeap* _descri
 D3D12_GPU_DESCRIPTOR_HANDLE GetGPUDescriptorHandle(ID3D12DescriptorHeap* _descriptorHeap, uint32_t _descriptorSize, uint32_t _index);
 void ImGuiWindow();
 void ImGuiTemplateTransform(const char* _id, float* _scale, float* _rotate, float* _translate);
+void CreateNewTexture(ID3D12Device* _device, ID3D12DescriptorHeap* _srvDescriptorHeap, const uint32_t _kDescriptorSizeSRV, const char* _path);
 
 // Windowsアプリでのエントリポイント
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
@@ -95,6 +100,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	// ウィンドウクラスを登録する
 	RegisterClass(&wc);
 
+	textureNameList.push_back("[Loaded texture]");
+	textureNameList.push_back("uvChecker.png");
+	textureNameList.push_back("MonsterBall.png");
 
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - //
 
@@ -487,107 +495,22 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	// 単位行列を書き込んでおく
 	wvpData->WVP = MakeIdentity4x4();
 
-	// 頂点リソース
-	ID3D12Resource* vertexResource = CreateBufferResource(device, sizeof(VertexData) * vertexCount);
+	/// モデル読み込み	--- --- --- --- ---
+	ModelData modelData = LoadObjFile("resources", ".obj");
+	// 頂点リソースを作る
+	ID3D12Resource* vertexResource = CreateBufferResource(device, sizeof(VertexData) * modelData.vertices.size());
 
 	// 頂点バッファービューを作成する
 	D3D12_VERTEX_BUFFER_VIEW vertexBufferView{};
-	// リソースの先頭アドレスから使う
 	vertexBufferView.BufferLocation = vertexResource->GetGPUVirtualAddress();
-	// 使用するリソースのサイズは頂点3つ分のサイズ
-	vertexBufferView.SizeInBytes = sizeof(VertexData) * vertexCount;
-	// 1頂点あたりのサイズ
+	vertexBufferView.SizeInBytes = UINT(sizeof(VertexData) * modelData.vertices.size());
 	vertexBufferView.StrideInBytes = sizeof(VertexData);
 	
 	// 頂点リソースにデータを書き込む
 	VertexData* vertexData = nullptr;
-	// 書き込むためのアドレスを取得
 	vertexResource->Map(0, nullptr, reinterpret_cast<void**>(&vertexData));
+	std::memcpy(vertexData, modelData.vertices.data(), sizeof(VertexData) * modelData.vertices.size());
 
-	// 経度分割1つ分の角度
-	const float kLonEvery = std::numbers::pi_v<float> * 2.0f / float(kSubDivision);
-	// 緯度分割1つ分の角度
-	const float kLatEvery = std::numbers::pi_v<float> / float(kSubDivision);
-	uint32_t startIndex = 0;
-	// 緯度の方向に分割
-	for (uint32_t latIndex = 0; latIndex < kSubDivision; ++latIndex)
-	{
-		float lat = -std::numbers::pi_v<float> / 2.0f + kLatEvery * latIndex;
-		// 経度の方向に分割しながら線を描く
-		for (uint32_t lonIndex = 0; lonIndex < kSubDivision; ++lonIndex)
-		{
-			float lon = lonIndex * kLonEvery;
-			float u, v;
-
-			// 頂点にデータを入力する。基準点a
-			vertexData[startIndex].position.x = std::cosf(lat) * std::cosf(lon);
-			vertexData[startIndex].position.y = std::sinf(lat);
-			vertexData[startIndex].position.z = std::cosf(lat) * std::sinf(lon);
-			vertexData[startIndex].position.w = 1.0f;
-			vertexData[startIndex].normal.x = vertexData[startIndex].position.x;
-			vertexData[startIndex].normal.y = vertexData[startIndex].position.y;
-			vertexData[startIndex].normal.z = vertexData[startIndex].position.z;
-			u = float(lonIndex) / float(kSubDivision);
-			v = 1.0f - float(latIndex) / float(kSubDivision);
-			vertexData[startIndex++].texcoord = { u, v };
-			// b
-			vertexData[startIndex].position.x = std::cosf(lat + kLatEvery) * std::cosf(lon);
-			vertexData[startIndex].position.y = std::sinf(lat + kLatEvery);
-			vertexData[startIndex].position.z = std::cosf(lat + kLatEvery) * std::sinf(lon);
-			vertexData[startIndex].position.w = 1.0f;
-			vertexData[startIndex].normal.x = vertexData[startIndex].position.x;
-			vertexData[startIndex].normal.y = vertexData[startIndex].position.y;
-			vertexData[startIndex].normal.z = vertexData[startIndex].position.z;
-			u = float(lonIndex) / float(kSubDivision);
-			v = 1.0f - float(latIndex + 1) / float(kSubDivision);
-			vertexData[startIndex++].texcoord = { u, v };
-			// c
-			vertexData[startIndex].position.x = std::cosf(lat) * std::cosf(lon + kLonEvery);
-			vertexData[startIndex].position.y = std::sinf(lat);
-			vertexData[startIndex].position.z = std::cosf(lat) * std::sinf(lon + kLonEvery);
-			vertexData[startIndex].position.w = 1.0f;
-			vertexData[startIndex].normal.x = vertexData[startIndex].position.x;
-			vertexData[startIndex].normal.y = vertexData[startIndex].position.y;
-			vertexData[startIndex].normal.z = vertexData[startIndex].position.z;
-			u = float(lonIndex + 1) / float(kSubDivision);
-			v = 1.0f - float(latIndex) / float(kSubDivision);
-			vertexData[startIndex++].texcoord = { u, v };
-
-			// d
-			vertexData[startIndex].position.x = std::cosf(lat + kLatEvery) * std::cosf(lon + kLonEvery);
-			vertexData[startIndex].position.y = std::sinf(lat + kLatEvery);
-			vertexData[startIndex].position.z = std::cosf(lat + kLatEvery) * std::sinf(lon + kLonEvery);
-			vertexData[startIndex].position.w = 1.0f;
-			vertexData[startIndex].normal.x = vertexData[startIndex].position.x;
-			vertexData[startIndex].normal.y = vertexData[startIndex].position.y;
-			vertexData[startIndex].normal.z = vertexData[startIndex].position.z;
-			u = float(lonIndex + 1) / float(kSubDivision);
-			v = 1.0f - float(latIndex + 1) / float(kSubDivision);
-			vertexData[startIndex++].texcoord = { u, v };
-			// c2
-			vertexData[startIndex].position.x = std::cosf(lat) * std::cosf(lon + kLonEvery);
-			vertexData[startIndex].position.y = std::sinf(lat);
-			vertexData[startIndex].position.z = std::cosf(lat) * std::sinf(lon + kLonEvery);
-			vertexData[startIndex].position.w = 1.0f;
-			vertexData[startIndex].normal.x = vertexData[startIndex].position.x;
-			vertexData[startIndex].normal.y = vertexData[startIndex].position.y;
-			vertexData[startIndex].normal.z = vertexData[startIndex].position.z;
-			u = float(lonIndex + 1) / float(kSubDivision);
-			v = 1.0f - float(latIndex) / float(kSubDivision);
-			vertexData[startIndex++].texcoord = { u, v };
-			// b2
-			vertexData[startIndex].position.x = std::cosf(lat + kLatEvery) * std::cosf(lon);
-			vertexData[startIndex].position.y = std::sinf(lat + kLatEvery);
-			vertexData[startIndex].position.z = std::cosf(lat + kLatEvery) * std::sinf(lon);
-			vertexData[startIndex].position.w = 1.0f;
-			vertexData[startIndex].normal.x = vertexData[startIndex].position.x;
-			vertexData[startIndex].normal.y = vertexData[startIndex].position.y;
-			vertexData[startIndex].normal.z = vertexData[startIndex].position.z;
-			u = float(lonIndex) / float(kSubDivision);
-			v = 1.0f - float(latIndex + 1) / float(kSubDivision);
-			vertexData[startIndex++].texcoord = { u, v };
-		}
-	}
 
 	ID3D12Resource* dirLightResource = CreateBufferResource(device, sizeof(DirectionalLight));
 	dirLightResource->Map(0, nullptr, reinterpret_cast<void**>(&dirLightData));
@@ -697,36 +620,43 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 
 #pragma region テクスチャを読み込む
-	bool changedTexture = 0;
-	// Textureを読んで転送する
-	DirectX::ScratchImage mipImages1 = LoadTexture("Resources/uvChecker.png");
-	DirectX::ScratchImage mipImages2 = LoadTexture("resources/monsterBall.png");
-	const DirectX::TexMetadata& metadata1 = mipImages1.GetMetadata();
-	const DirectX::TexMetadata& metadata2 = mipImages2.GetMetadata();
-	ID3D12Resource* textureResource1 = CreateTextureResource(device, metadata1);
-	ID3D12Resource* textureResource2 = CreateTextureResource(device, metadata2);
-	UploadTextureData(textureResource1, mipImages1);
-	UploadTextureData(textureResource2, mipImages2);
-
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc1{};
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc2{};
-	srvDesc1.Format = metadata1.format;
-	srvDesc2.Format = metadata2.format;
-	srvDesc1.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srvDesc2.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srvDesc1.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D; // 2Dテクスチャ
-	srvDesc2.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D; // 2Dテクスチャ
-	srvDesc1.Texture2D.MipLevels = UINT(metadata1.mipLevels);
-	srvDesc2.Texture2D.MipLevels = UINT(metadata2.mipLevels);
 
 	// SRVを作成するDescriptorHeapの場所を決める
-	D3D12_CPU_DESCRIPTOR_HANDLE textureSrvHandleCPU1 = GetCPUDescriptorHandle(srvDescriptorHeap, kDescriptorSizeSRV, 1);
-	D3D12_CPU_DESCRIPTOR_HANDLE textureSrvHandleCPU2 = GetCPUDescriptorHandle(srvDescriptorHeap, kDescriptorSizeSRV, 2);
-	D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandleGPU1 = GetGPUDescriptorHandle(srvDescriptorHeap, kDescriptorSizeSRV, 1);
-	D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandleGPU2 = GetGPUDescriptorHandle(srvDescriptorHeap, kDescriptorSizeSRV, 2);
-	// SRVの生成
-	device->CreateShaderResourceView(textureResource1, &srvDesc1, textureSrvHandleCPU1);
-	device->CreateShaderResourceView(textureResource2, &srvDesc2, textureSrvHandleCPU2);
+	for (int i = 0; i < textureNameList.size(); i++)
+	{
+		std::string texturePath;
+		if (i == 0)
+		{
+			texturePath = modelData.material.textureFilePath;
+		}
+		else
+		{
+			std::string textureName = textureNameList[i];
+			texturePath = "Resources/" + textureName;
+		}
+
+		// Textureを読んで転送する
+		DirectX::ScratchImage mipImage = LoadTexture(texturePath);
+		const DirectX::TexMetadata& metadata = mipImage.GetMetadata();
+		ID3D12Resource* textureResource = CreateTextureResource(device, metadata);
+		textureResources.push_back(textureResource);
+		UploadTextureData(textureResource, mipImage);
+
+		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+		srvDesc.Format = metadata.format;
+		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		srvDesc.Texture2D.MipLevels = UINT(metadata.mipLevels);
+		//srvDescs.push_back(srvDesc);
+
+		D3D12_CPU_DESCRIPTOR_HANDLE textureSrvHandleCPU = GetCPUDescriptorHandle(srvDescriptorHeap, kDescriptorSizeSRV, numUploadedTexture);
+		D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandleGPU = GetGPUDescriptorHandle(srvDescriptorHeap, kDescriptorSizeSRV, numUploadedTexture);
+		numUploadedTexture++;
+		textureSrvHandleCPUs.push_back(textureSrvHandleCPU);
+		textureSrvHandleGPUs.push_back(textureSrvHandleGPU);
+		device->CreateShaderResourceView(textureResource, &srvDesc, textureSrvHandleCPU);
+	}
+
 #pragma endregion
 
 #pragma region ImGui Initialize
@@ -841,7 +771,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 			// wvp用CBufferの場所を設定
 			commandList->SetGraphicsRootConstantBufferView(1, wvpResource->GetGPUVirtualAddress());
 
-			commandList->SetGraphicsRootDescriptorTable(2, useMonsterBall ? textureSrvHandleGPU2 : textureSrvHandleGPU1);
+			//if (selectedIndexTextureNameList == 0){}
+			//else if(selectedIndexTextureNameList == 1) commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU1);
+			//else if(selectedIndexTextureNameList == 2) commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU2);
+			commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPUs[selectedIndexTextureNameList]);
 
 			commandList->SetGraphicsRootConstantBufferView(3, dirLightResource->GetGPUVirtualAddress());
 
@@ -854,7 +787,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 			// 描画！（DrawCall/ドローコール）。頂点
 			if (isDrawSphere)
-				commandList->DrawInstanced(vertexCount, 1, 0, 0);
+				commandList->DrawInstanced(static_cast<unsigned int>(modelData.vertices.size()), 1, 0, 0);
 
 			// Spriteの描画。変更が必要なものだけ変更する。
 			commandList->IASetVertexBuffers(0, 1, &vertexBufferViewSprite);
@@ -863,7 +796,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 			// TransformationMatrixCBufferの場所を設定
 			commandList->SetGraphicsRootConstantBufferView(1, transformationMatrixResourceSprite->GetGPUVirtualAddress());
 			// SRVの設定
-			commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU1);
+			commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPUs[1]);
 
 			// 描画！（DrawCall/ドローコール）。スプライト
 			if (isDrawSprite)
@@ -920,8 +853,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	transformationMatrixResourceSprite->Release();
 	dsvDescriptorHeap->Release();
 	depthStencilResource->Release();
-	textureResource1->Release();
-	textureResource2->Release();
+	for (auto resource : textureResources)
+	{
+		resource->Release();
+	}
 	indexResourceSprite->Release();
 	materialResourceSprite->Release();
 	vertexResourceSprite->Release();
@@ -1242,10 +1177,10 @@ void ImGuiWindow()
 			if (ImGui::BeginPopup("SELECT_TEXTURE"))
 			{
 				ImGui::BeginListBox("Texture List", ImVec2(150, 60));
-				for (int i = 0; i < IM_ARRAYSIZE(textureNameList); i++)
+				for (int i = 0; i < textureNameList.size(); i++)
 				{
 					const bool isSelect = selectedIndexTextureNameList == i;
-					if (ImGui::Selectable(textureNameList[i], isSelect))
+					if (ImGui::Selectable(textureNameList[i].c_str(), isSelect))
 					{
 						selectedIndexTextureNameList = i;
 					}
@@ -1253,8 +1188,6 @@ void ImGuiWindow()
 					if (isSelect)
 						ImGui::SetItemDefaultFocus();
 				}
-				if (selectedIndexTextureNameList == 0) useMonsterBall = false;
-				else useMonsterBall = true;
 				ImGui::EndListBox();
 
 				ImGui::EndPopup();
@@ -1356,4 +1289,28 @@ void ImGuiTemplateTransform(const char* _id, float* _scale, float* _rotate, floa
 	ImGui::DragFloat3("Translate", _translate, 0.01f);
 	ImGui::Spacing();
 	ImGui::PopID();
+}
+
+void CreateNewTexture(ID3D12Device* _device, ID3D12DescriptorHeap* _srvDescriptorHeap, const uint32_t _kDescriptorSizeSRV, const char* _path)
+{
+	
+	DirectX::ScratchImage mipImage = LoadTexture("テクスチャ名前");
+	const DirectX::TexMetadata& metadata = mipImage.GetMetadata();
+	ID3D12Resource* textureResource = CreateTextureResource(_device, metadata);
+	textureResources.push_back(textureResource);
+	UploadTextureData(textureResource, mipImage);
+
+	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+	srvDesc.Format = metadata.format;
+	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+	srvDesc.Texture2D.MipLevels = UINT(metadata.mipLevels);
+
+	D3D12_CPU_DESCRIPTOR_HANDLE textureSrvHandleCPU = GetCPUDescriptorHandle(_srvDescriptorHeap, _kDescriptorSizeSRV, numUploadedTexture);
+	D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandleGPU = GetGPUDescriptorHandle(_srvDescriptorHeap, _kDescriptorSizeSRV, numUploadedTexture);
+	numUploadedTexture++;
+	textureSrvHandleCPUs.push_back(textureSrvHandleCPU);
+	textureSrvHandleGPUs.push_back(textureSrvHandleGPU);
+	_device->CreateShaderResourceView(textureResource, &srvDesc, textureSrvHandleCPU);
+	
 }
