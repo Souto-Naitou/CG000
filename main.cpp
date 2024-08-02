@@ -59,8 +59,6 @@ bool lightingWindow = {};
 bool isDrawSprite = {};
 bool isDrawSphere = {1};
 
-const unsigned int numTextureNameList = 3;
-
 std::vector<std::string> textureNameList;
 
 unsigned int selectedIndexTextureNameList = 0;
@@ -496,7 +494,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	wvpData->WVP = MakeIdentity4x4();
 
 	/// モデル読み込み	--- --- --- --- ---
-	ModelData modelData = LoadObjFile("resources", ".obj");
+	ModelData modelData = LoadObjFile("resources", "axis.obj");
+	materialData->color = modelData.material.diffuse;
+	
 	// 頂点リソースを作る
 	ID3D12Resource* vertexResource = CreateBufferResource(device, sizeof(VertexData) * modelData.vertices.size());
 
@@ -622,6 +622,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 #pragma region テクスチャを読み込む
 
 	// SRVを作成するDescriptorHeapの場所を決める
+
 	for (int i = 0; i < textureNameList.size(); i++)
 	{
 		std::string texturePath;
@@ -635,26 +636,28 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 			texturePath = "Resources/" + textureName;
 		}
 
-		// Textureを読んで転送する
-		DirectX::ScratchImage mipImage = LoadTexture(texturePath);
-		const DirectX::TexMetadata& metadata = mipImage.GetMetadata();
-		ID3D12Resource* textureResource = CreateTextureResource(device, metadata);
-		textureResources.push_back(textureResource);
-		UploadTextureData(textureResource, mipImage);
+		CreateNewTexture(device, srvDescriptorHeap, kDescriptorSizeSRV, texturePath.c_str());
 
-		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
-		srvDesc.Format = metadata.format;
-		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-		srvDesc.Texture2D.MipLevels = UINT(metadata.mipLevels);
-		//srvDescs.push_back(srvDesc);
+		//// Textureを読んで転送する
+		//DirectX::ScratchImage mipImage = LoadTexture(texturePath);
+		//const DirectX::TexMetadata& metadata = mipImage.GetMetadata();
+		//ID3D12Resource* textureResource = CreateTextureResource(device, metadata);
+		//textureResources.push_back(textureResource);
+		//UploadTextureData(textureResource, mipImage);
 
-		D3D12_CPU_DESCRIPTOR_HANDLE textureSrvHandleCPU = GetCPUDescriptorHandle(srvDescriptorHeap, kDescriptorSizeSRV, numUploadedTexture);
-		D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandleGPU = GetGPUDescriptorHandle(srvDescriptorHeap, kDescriptorSizeSRV, numUploadedTexture);
-		numUploadedTexture++;
-		textureSrvHandleCPUs.push_back(textureSrvHandleCPU);
-		textureSrvHandleGPUs.push_back(textureSrvHandleGPU);
-		device->CreateShaderResourceView(textureResource, &srvDesc, textureSrvHandleCPU);
+		//D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+		//srvDesc.Format = metadata.format;
+		//srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		//srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		//srvDesc.Texture2D.MipLevels = UINT(metadata.mipLevels);
+		////srvDescs.push_back(srvDesc);
+
+		//D3D12_CPU_DESCRIPTOR_HANDLE textureSrvHandleCPU = GetCPUDescriptorHandle(srvDescriptorHeap, kDescriptorSizeSRV, numUploadedTexture);
+		//D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandleGPU = GetGPUDescriptorHandle(srvDescriptorHeap, kDescriptorSizeSRV, numUploadedTexture);
+		//numUploadedTexture++;
+		//textureSrvHandleCPUs.push_back(textureSrvHandleCPU);
+		//textureSrvHandleGPUs.push_back(textureSrvHandleGPU);
+		//device->CreateShaderResourceView(textureResource, &srvDesc, textureSrvHandleCPU);
 	}
 
 #pragma endregion
@@ -1293,8 +1296,7 @@ void ImGuiTemplateTransform(const char* _id, float* _scale, float* _rotate, floa
 
 void CreateNewTexture(ID3D12Device* _device, ID3D12DescriptorHeap* _srvDescriptorHeap, const uint32_t _kDescriptorSizeSRV, const char* _path)
 {
-	
-	DirectX::ScratchImage mipImage = LoadTexture("テクスチャ名前");
+	DirectX::ScratchImage mipImage = LoadTexture(_path);
 	const DirectX::TexMetadata& metadata = mipImage.GetMetadata();
 	ID3D12Resource* textureResource = CreateTextureResource(_device, metadata);
 	textureResources.push_back(textureResource);
@@ -1306,11 +1308,11 @@ void CreateNewTexture(ID3D12Device* _device, ID3D12DescriptorHeap* _srvDescripto
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 	srvDesc.Texture2D.MipLevels = UINT(metadata.mipLevels);
 
+	numUploadedTexture++;
 	D3D12_CPU_DESCRIPTOR_HANDLE textureSrvHandleCPU = GetCPUDescriptorHandle(_srvDescriptorHeap, _kDescriptorSizeSRV, numUploadedTexture);
 	D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandleGPU = GetGPUDescriptorHandle(_srvDescriptorHeap, _kDescriptorSizeSRV, numUploadedTexture);
-	numUploadedTexture++;
 	textureSrvHandleCPUs.push_back(textureSrvHandleCPU);
 	textureSrvHandleGPUs.push_back(textureSrvHandleGPU);
 	_device->CreateShaderResourceView(textureResource, &srvDesc, textureSrvHandleCPU);
-	
+	return;
 }

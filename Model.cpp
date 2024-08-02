@@ -21,8 +21,11 @@ ModelData LoadObjFile(const std::string& _directoryPath, const std::string& _fil
         std::string identifier;
         std::istringstream s(line);
         s >> identifier;
-
-        if (identifier == "v")
+        if (identifier == "#")
+        {
+            continue;
+        }
+        else if (identifier == "v")
         {
             Vector4 position;
             s >> position.x >> position.y >> position.z;
@@ -108,6 +111,17 @@ MaterialData LoadMaterialTemplateFile(const std::string& _directoryPath, const s
             s >> textureFilename;
             // 連結してファイルパスに
             materialData.textureFilePath = _directoryPath + "/" + textureFilename;
+        }
+        else if (identifier == "Kd")
+        {
+            // 拡散反射率を取得
+            for (int32_t numRGB = 0; numRGB < 3; numRGB++)
+            {
+                std::string diffuseDefinition;
+                s >> diffuseDefinition;
+                *(&materialData.diffuse.x + numRGB) = std::stof(diffuseDefinition, nullptr);
+            }
+            materialData.diffuse.w = 1.0f;
         }
     }
     // 4 Return MaterialData
