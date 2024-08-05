@@ -118,7 +118,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	RegisterClass(&wc);
 
 	modelList.label.push_back("Sphere");
+	modelList.label.push_back("Plane");
 	modelList.label.push_back("Utah Teapot");
+	modelList.label.push_back("Stanford Bunny");
 	modelList.numIndex = 0u;
 
 
@@ -516,10 +518,38 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	modelScenes.back().material->uvTransform = MakeIdentity4x4();
 
 
+	modelScenes.push_back({
+		.modelData = LoadObjFile("resources", "plane.obj"),
+		.material = nullptr,
+		.selectedTextureIndex = 0
+		}
+	);
+	// 書き込むためのアドレスを取得
+	materialResource->Map(0, nullptr, reinterpret_cast<void**>(&modelScenes.back().material));
+	// 白色がデフォルト
+	modelScenes.back().material->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
+	modelScenes.back().material->enableLighting = false;
+	modelScenes.back().material->uvTransform = MakeIdentity4x4();
+
+
 	modelScenes.push_back({ 
 		.modelData = LoadObjFile("resources", "teapot.obj"),
 		.material = nullptr,
 		.selectedTextureIndex = 0 
+		}
+	);
+	// 書き込むためのアドレスを取得
+	materialResource->Map(0, nullptr, reinterpret_cast<void**>(&modelScenes.back().material));
+	// 白色がデフォルト
+	modelScenes.back().material->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
+	modelScenes.back().material->enableLighting = false;
+	modelScenes.back().material->uvTransform = MakeIdentity4x4();
+
+
+	modelScenes.push_back({
+	.modelData = LoadObjFile("resources", "bunny.obj"),
+	.material = nullptr,
+	.selectedTextureIndex = 0
 		}
 	);
 	// 書き込むためのアドレスを取得
@@ -753,6 +783,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 				vertexBufferView.StrideInBytes = sizeof(VertexData);
 				modelScenes[numCurrentModelIndexPrev].selectedTextureIndex = textureList.numIndex;
 				textureList.numIndex = modelScenes[numCurrentModelIndex].selectedTextureIndex;
+				if (modelList.numIndex == 1) transformModel.rotate.y = 3.130f;
 			}
 
 			// ディスクリプタの先頭を取得する
