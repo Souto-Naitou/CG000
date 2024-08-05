@@ -65,16 +65,3 @@ struct D3DResourceLeakChecker
 		}
 	}
 };
-
-struct ImGuiListData
-{
-	std::vector<std::string> label;
-	unsigned int numIndex;
-};
-
-struct ModelScene
-{
-	ModelData modelData;
-	Material* material;
-	unsigned int selectedTextureIndex
-};

@@ -60,9 +60,7 @@ bool lightingWindow = {};
 bool isDrawSprite = {};
 bool isDrawSphere = {1};
 
-ImGuiListData modelList;
-
-std::vector<ModelScene> modelScenes;
+std::vector<std::string> textureNameList;
 
 unsigned int selectedIndexTextureNameList = 0;
 std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> textureSrvHandleCPUs;
@@ -108,12 +106,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	// ウィンドウクラスを登録する
 	RegisterClass(&wc);
 
-	modelList.label.push_back("[Built-in texture]");
-	modelList.label.push_back("uvChecker.png");
-	modelList.label.push_back("MonsterBall.png");
-
-	modelList.numIndex = 0u;
-
+	textureNameList.push_back("[Loaded texture]");
+	textureNameList.push_back("uvChecker.png");
+	textureNameList.push_back("MonsterBall.png");
 
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - //
 
@@ -490,7 +485,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	Microsoft::WRL::ComPtr<ID3D12Resource> materialResource = CreateBufferResource(device, sizeof(Material));
 
 	// 書き込むためのアドレスを取得
-	materialResource->Map(0, nullptr, reinterpret_cast<void**>(&modelScenes.back().material));
+	materialResource->Map(0, nullptr, reinterpret_cast<void**>(&materialData));
 
 	// 白色でいく
 	materialData->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
@@ -507,9 +502,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	wvpData->WVP = MakeIdentity4x4();
 
 	/// モデル読み込み	--- --- --- --- ---
-	modelScenes.push_back({ LoadObjFile("resources", "axis.obj"), 0 });
-	modelScenes.back().selectedTextureIndex = modelList.numIndex;
-	modelScenes.back().material->color = modelScenes.back().modelData.material.diffuse;
+	ModelData modelData = LoadObjFile("resources", "axis.obj");
+	materialData->color = modelData.material.diffuse;
 	
 	// 頂点リソースを作る
 	Microsoft::WRL::ComPtr<ID3D12Resource> vertexResource = CreateBufferResource(device, sizeof(VertexData) * modelData.vertices.size());
@@ -637,12 +631,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 	// SRVを作成するDescriptorHeapの場所を決める
 
-	for (int i = 0; i < modelList.label.size(); i++)
+	for (int i = 0; i < textureNameList.size(); i++)
 	{
 		std::string texturePath;
 		if (i == 0)
 		{
-			texturePath = material.textureFilePath;
+			texturePath = modelData.material.textureFilePath;
 		}
 		else
 		{
