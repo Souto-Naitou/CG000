@@ -68,7 +68,7 @@ struct D3DResourceLeakChecker
 
 struct ImGuiListData
 {
-	std::vector<std::string> label;
+	std::vector<const char*> label;
 	unsigned int numIndex;
 };
 
@@ -76,5 +76,5 @@ struct ModelScene
 {
 	ModelData modelData;
 	Material* material;
-	unsigned int selectedTextureIndex
+	unsigned int selectedTextureIndex; // numIndexを保存しておく用
 };

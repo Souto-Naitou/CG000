@@ -61,10 +61,11 @@ bool isDrawSprite = {};
 bool isDrawSphere = {1};
 
 ImGuiListData modelList;
+ImGuiListData textureList;
 
 std::vector<ModelScene> modelScenes;
+unsigned int numCurrentModelIndex = 0u;
 
-unsigned int selectedIndexTextureNameList = 0;
 std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> textureSrvHandleCPUs;
 std::vector<D3D12_GPU_DESCRIPTOR_HANDLE> textureSrvHandleGPUs;
 int numUploadedTexture = 0;
@@ -108,11 +109,14 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	// ウィンドウクラスを登録する
 	RegisterClass(&wc);
 
-	modelList.label.push_back("[Built-in texture]");
-	modelList.label.push_back("uvChecker.png");
-	modelList.label.push_back("MonsterBall.png");
-
+	modelList.label.push_back("Sphere");
+	modelList.label.push_back("Utah Teapot");
 	modelList.numIndex = 0u;
+
+	textureList.label.push_back("[Built-in texture]");
+	textureList.label.push_back("uvChecker.png");
+	textureList.label.push_back("MonsterBall.png");
+	textureList.numIndex = 0u;
 
 
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - //
@@ -486,16 +490,19 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 	/// CreateBuffer --- --- --- --- ---
 
+	/// モデル読み込み	--- --- --- --- ---
+	modelScenes.push_back({ LoadObjFile("resources", "axis.obj"), 0 });
+
 	// マテリアル用のリソースを作る。今回はcolor1つ分のサイズを用意する
 	Microsoft::WRL::ComPtr<ID3D12Resource> materialResource = CreateBufferResource(device, sizeof(Material));
 
 	// 書き込むためのアドレスを取得
 	materialResource->Map(0, nullptr, reinterpret_cast<void**>(&modelScenes.back().material));
 
-	// 白色でいく
-	materialData->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
-	materialData->enableLighting = false;
-	materialData->uvTransform = MakeIdentity4x4();
+	// 白色がデフォルト
+	modelScenes.back().material->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
+	modelScenes.back().material->enableLighting = false;
+	modelScenes.back().material->uvTransform = MakeIdentity4x4();
 
 	// WVP用のリソースを作る。Matrix4x4 一つ分のサイズを用意する
 	Microsoft::WRL::ComPtr<ID3D12Resource> wvpResource = CreateBufferResource(device, sizeof(TransformationMatrix));
@@ -506,24 +513,22 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	// 単位行列を書き込んでおく
 	wvpData->WVP = MakeIdentity4x4();
 
-	/// モデル読み込み	--- --- --- --- ---
-	modelScenes.push_back({ LoadObjFile("resources", "axis.obj"), 0 });
 	modelScenes.back().selectedTextureIndex = modelList.numIndex;
 	modelScenes.back().material->color = modelScenes.back().modelData.material.diffuse;
 	
 	// 頂点リソースを作る
-	Microsoft::WRL::ComPtr<ID3D12Resource> vertexResource = CreateBufferResource(device, sizeof(VertexData) * modelData.vertices.size());
+	Microsoft::WRL::ComPtr<ID3D12Resource> vertexResource = CreateBufferResource(device, sizeof(VertexData) * modelScenes[numCurrentModelIndex].modelData.vertices.size());
 
 	// 頂点バッファービューを作成する
 	D3D12_VERTEX_BUFFER_VIEW vertexBufferView{};
 	vertexBufferView.BufferLocation = vertexResource->GetGPUVirtualAddress();
-	vertexBufferView.SizeInBytes = UINT(sizeof(VertexData) * modelData.vertices.size());
+	vertexBufferView.SizeInBytes = UINT(sizeof(VertexData) * modelScenes[numCurrentModelIndex].modelData.vertices.size());
 	vertexBufferView.StrideInBytes = sizeof(VertexData);
 	
 	// 頂点リソースにデータを書き込む
 	VertexData* vertexData = nullptr;
 	vertexResource->Map(0, nullptr, reinterpret_cast<void**>(&vertexData));
-	std::memcpy(vertexData, modelData.vertices.data(), sizeof(VertexData) * modelData.vertices.size());
+	std::memcpy(vertexData, modelScenes[numCurrentModelIndex].modelData.vertices.data(), sizeof(VertexData) * modelScenes[numCurrentModelIndex].modelData.vertices.size());
 
 
 	Microsoft::WRL::ComPtr<ID3D12Resource> dirLightResource = CreateBufferResource(device, sizeof(DirectionalLight));
@@ -640,13 +645,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	for (int i = 0; i < modelList.label.size(); i++)
 	{
 		std::string texturePath;
-		if (i == 0)
+		if (i == 0) // [Built-in texture]
 		{
-			texturePath = material.textureFilePath;
+			texturePath = modelScenes[numCurrentModelIndex].modelData.material.textureFilePath;
 		}
-		else
+		else // その他
 		{
-			std::string textureName = textureNameList[i];
+			std::string textureName = textureList.label[i];
 			texturePath = "Resources/" + textureName;
 		}
 
@@ -791,7 +796,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 			//if (selectedIndexTextureNameList == 0){}
 			//else if(selectedIndexTextureNameList == 1) commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU1);
 			//else if(selectedIndexTextureNameList == 2) commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU2);
-			commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPUs[selectedIndexTextureNameList]);
+			commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPUs[textureList.numIndex]);
 
 			commandList->SetGraphicsRootConstantBufferView(3, dirLightResource->GetGPUVirtualAddress());
 
@@ -804,7 +809,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 			// 描画！（DrawCall/ドローコール）。頂点
 			if (isDrawSphere)
-				commandList->DrawInstanced(static_cast<unsigned int>(modelData.vertices.size()), 1, 0, 0);
+				commandList->DrawInstanced(static_cast<unsigned int>(modelScenes[numCurrentModelIndex].modelData.vertices.size()), 1, 0, 0);
 
 			// Spriteの描画。変更が必要なものだけ変更する。
 			commandList->IASetVertexBuffers(0, 1, &vertexBufferViewSprite);
@@ -1117,6 +1122,9 @@ void ImGuiWindow()
 	ImGui::Begin("Dev", (bool*)false, windowflags);
 	/// begin
 
+	ImGui::Text("Model");
+	ImGui::Combo("### Model", reinterpret_cast<int*>(&modelList.numIndex), *modelList.label.data());
+	ImGui::Separator();
 	ImGui::BeginTabBar("DEVWINDOW_TABBER");
 
 	if (ImGui::BeginTabItem("Model"))
@@ -1144,12 +1152,12 @@ void ImGuiWindow()
 			if (ImGui::BeginPopup("SELECT_TEXTURE"))
 			{
 				ImGui::BeginListBox("Texture List", ImVec2(150, 60));
-				for (int i = 0; i < textureNameList.size(); i++)
+				for (int i = 0; i < textureList.label.size(); i++)
 				{
-					const bool isSelect = selectedIndexTextureNameList == i;
-					if (ImGui::Selectable(textureNameList[i].c_str(), isSelect))
+					const bool isSelect = textureList.numIndex == i;
+					if (ImGui::Selectable(textureList.label[i], isSelect))
 					{
-						selectedIndexTextureNameList = i;
+						textureList.numIndex = i;
 					}
 
 					if (isSelect)
