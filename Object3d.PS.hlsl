@@ -4,6 +4,7 @@
 struct Material
 {
     float32_t4 color;
+    int32_t lightingType;
     int32_t enableLighting;
     float32_t4x4 uvTransform;
 };
@@ -36,11 +37,18 @@ PixelShaderOutput main(VertexShaderOutput input)
     
     if (gMaterial.enableLighting != 0)
     {
-        //float cos = saturate(dot(normalize(input.normal), -gDirectionalLight.direction));
+        float cos;
+        if (gMaterial.lightingType == 0)
+        {
+            cos = saturate(dot(normalize(input.normal), -gDirectionalLight.direction));
+        }
+        else if (gMaterial.lightingType == 1)
+        {
+            // half lambert
+            float NdotL = dot(normalize(input.normal), -gDirectionalLight.direction);
+            cos = pow(NdotL * 0.5f + 0.5f, 2.0f);
+        }
 
-        // half lambert
-        float NdotL = dot(normalize(input.normal), -gDirectionalLight.direction);
-        float cos = pow(NdotL * 0.5f + 0.5f, 2.0f);
         output.color = gMaterial.color * textureColor * gDirectionalLight.color * cos * gDirectionalLight.intensity;
     }
     else

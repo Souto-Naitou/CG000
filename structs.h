@@ -18,11 +18,18 @@ struct VertexData
 	Vector3 normal;
 };
 
+enum class LightingType : int32_t
+{
+	LambertianReflectance,
+	HarfLambert
+};
+
 struct Material
 {
 	Vector4 color;
+	LightingType lightingType;
 	int32_t enableLighting;
-	float padding[3];
+	float padding[2];
 	Matrix4x4 uvTransform;
 };
 

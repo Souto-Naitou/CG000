@@ -62,12 +62,15 @@ bool isDrawSphere = {1};
 
 ImGuiListData modelList;
 ImGuiListData textureList;
+ImGuiListData lightingTypeList;
 
 std::vector<ModelScene> modelScenes;
 unsigned int numCurrentModelIndex = 0u;
+unsigned int numCurrentModelIndexPrev = 0u;
 
 std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> textureSrvHandleCPUs;
 std::vector<D3D12_GPU_DESCRIPTOR_HANDLE> textureSrvHandleGPUs;
+
 int numUploadedTexture = 0;
 const uint32_t kSubDivision = 16u;
 unsigned int vertexCount = 0;
@@ -494,30 +497,38 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 	/// CreateBuffer --- --- --- --- ---
 
+		// マテリアル用のリソースを作る。今回はcolor1つ分のサイズを用意する
+	Microsoft::WRL::ComPtr<ID3D12Resource> materialResource = CreateBufferResource(device, sizeof(Material));
+
 	/// モデル読み込み	--- --- --- --- ---
+
 	modelScenes.push_back({ 
 		.modelData = {}, 
 		.material = nullptr, 
 		.selectedTextureIndex = 0
 		}
 	);
+	// 書き込むためのアドレスを取得
+	materialResource->Map(0, nullptr, reinterpret_cast<void**>(&modelScenes.back().material));
+	// 白色がデフォルト
+	modelScenes.back().material->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
+	modelScenes.back().material->enableLighting = false;
+	modelScenes.back().material->uvTransform = MakeIdentity4x4();
+
+
 	modelScenes.push_back({ 
 		.modelData = LoadObjFile("resources", "teapot.obj"),
 		.material = nullptr,
 		.selectedTextureIndex = 0 
 		}
 	);
-
-	// マテリアル用のリソースを作る。今回はcolor1つ分のサイズを用意する
-	Microsoft::WRL::ComPtr<ID3D12Resource> materialResource = CreateBufferResource(device, sizeof(Material));
-
 	// 書き込むためのアドレスを取得
-	materialResource->Map(0, nullptr, reinterpret_cast<void**>(&modelScenes[numCurrentModelIndex].material));
-
+	materialResource->Map(0, nullptr, reinterpret_cast<void**>(&modelScenes.back().material));
 	// 白色がデフォルト
-	modelScenes[numCurrentModelIndex].material->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
-	modelScenes[numCurrentModelIndex].material->enableLighting = false;
-	modelScenes[numCurrentModelIndex].material->uvTransform = MakeIdentity4x4();
+	modelScenes.back().material->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
+	modelScenes.back().material->enableLighting = false;
+	modelScenes.back().material->uvTransform = MakeIdentity4x4();
+
 
 	// WVP用のリソースを作る。Matrix4x4 一つ分のサイズを用意する
 	Microsoft::WRL::ComPtr<ID3D12Resource> wvpResource = CreateBufferResource(device, sizeof(TransformationMatrix));
@@ -740,6 +751,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 				vertexBufferView.BufferLocation = vertexResource->GetGPUVirtualAddress();
 				vertexBufferView.SizeInBytes = UINT(sizeof(VertexData) * vertexCount);
 				vertexBufferView.StrideInBytes = sizeof(VertexData);
+				modelScenes[numCurrentModelIndexPrev].selectedTextureIndex = textureList.numIndex;
+				textureList.numIndex = modelScenes[numCurrentModelIndex].selectedTextureIndex;
 			}
 
 			// ディスクリプタの先頭を取得する
@@ -1135,6 +1148,7 @@ void ImGuiWindow()
 		if (modelList.numIndex != numCurrentModelIndex)
 		{
 			isChangedModelSelect = true;
+			numCurrentModelIndexPrev = numCurrentModelIndex;
 			numCurrentModelIndex = modelList.numIndex;
 		}
 		else isChangedModelSelect = false;
@@ -1194,6 +1208,9 @@ void ImGuiWindow()
 			ImGui::Spacing();
 			ImGui::PushID("SPHERE_LIGHTING");
 			ImGui::Checkbox("Enable Lighting", reinterpret_cast<bool*>(&modelScenes[numCurrentModelIndex].material->enableLighting));
+			ImGui::Combo("Type", reinterpret_cast<int*>(&lightingTypeList.numIndex), "Lambertian Reflectance\0Half Lambert\0", 2);
+			if (lightingTypeList.numIndex == 0) modelScenes[numCurrentModelIndex].material->lightingType = LightingType::LambertianReflectance;
+			else if (lightingTypeList.numIndex == 1) modelScenes[numCurrentModelIndex].material->lightingType = LightingType::HarfLambert;
 			if (ImGui::DragFloat3("Direction", &dirLightData->direction.x, 0.01f))
 			{
 				dirLightData->direction = Normalize(dirLightData->direction);
@@ -1241,9 +1258,11 @@ void ImGuiWindow()
 	{
 		ImGui::PushID("CAMERA_TABITEM");
 		ImGui::Spacing();
-		ImGui::Text("Transform");
-		ImGui::DragFloat3("Rotate", &cameraTransform.rotate.x, 0.01f);
-		ImGui::DragFloat3("Translate", &cameraTransform.translate.x, 0.01f);
+		if (ImGui::CollapsingHeader("Transform"))
+		{
+			ImGui::DragFloat3("Rotate", &cameraTransform.rotate.x, 0.01f);
+			ImGui::DragFloat3("Translate", &cameraTransform.translate.x, 0.01f);
+		}
 		ImGui::PopID();
 
 		ImGui::EndTabItem();
