@@ -50,7 +50,7 @@ Material* materialData = nullptr;
 Material* materialDataSprite = nullptr;
 DirectionalLight* dirLightData = nullptr;
 
-sTransform transform = {};
+sTransform transformModel = {};
 sTransform transformSprite = {};
 sTransform cameraTransform = {};
 sTransform uvTransformSprite = { {1.0f, 1.0f, 1.0f} };
@@ -69,7 +69,9 @@ unsigned int numCurrentModelIndex = 0u;
 std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> textureSrvHandleCPUs;
 std::vector<D3D12_GPU_DESCRIPTOR_HANDLE> textureSrvHandleGPUs;
 int numUploadedTexture = 0;
-
+const uint32_t kSubDivision = 16u;
+unsigned int vertexCount = 0;
+bool isChangedModelSelect = false;
 
 Microsoft::WRL::ComPtr<ID3D12Resource> CreateBufferResource(const Microsoft::WRL::ComPtr<ID3D12Device>& _device, size_t _sizeInBytes);
 Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> CreateDescriptorHeap(const Microsoft::WRL::ComPtr<ID3D12Device>& _device, D3D12_DESCRIPTOR_HEAP_TYPE _heapType, UINT _numDescriptors, bool _shaderVisible);
@@ -87,6 +89,9 @@ void CreateNewTexture(const Microsoft::WRL::ComPtr<ID3D12Device>& _device,
 	const char* _path,
 	std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>>& _textureResources
 );
+Microsoft::WRL::ComPtr<ID3D12Resource> CreateVertexResource(ID3D12Device* _device);
+
+void BuildSphere(VertexData* _vertexData, uint32_t _subDivision, unsigned int& _vertexCount);
 
 // Windowsアプリでのエントリポイント
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
@@ -113,10 +118,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	modelList.label.push_back("Utah Teapot");
 	modelList.numIndex = 0u;
 
+
 	textureList.label.push_back("[Built-in texture]");
 	textureList.label.push_back("uvChecker.png");
 	textureList.label.push_back("MonsterBall.png");
-	textureList.numIndex = 0u;
+	textureList.numIndex = 1u;
 
 
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - //
@@ -124,8 +130,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	// クライアント領域のサイズ
 	const int32_t kClientWidth = 1280;
 	const int32_t kClientHeight = 720;
-	const uint32_t kSubDivision = 16u;
-	unsigned int vertexCount = kSubDivision * kSubDivision * 6;
 
 	std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> textureResources;
 
@@ -491,18 +495,29 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	/// CreateBuffer --- --- --- --- ---
 
 	/// モデル読み込み	--- --- --- --- ---
-	modelScenes.push_back({ LoadObjFile("resources", "axis.obj"), 0 });
+	modelScenes.push_back({ 
+		.modelData = {}, 
+		.material = nullptr, 
+		.selectedTextureIndex = 0
+		}
+	);
+	modelScenes.push_back({ 
+		.modelData = LoadObjFile("resources", "teapot.obj"),
+		.material = nullptr,
+		.selectedTextureIndex = 0 
+		}
+	);
 
 	// マテリアル用のリソースを作る。今回はcolor1つ分のサイズを用意する
 	Microsoft::WRL::ComPtr<ID3D12Resource> materialResource = CreateBufferResource(device, sizeof(Material));
 
 	// 書き込むためのアドレスを取得
-	materialResource->Map(0, nullptr, reinterpret_cast<void**>(&modelScenes.back().material));
+	materialResource->Map(0, nullptr, reinterpret_cast<void**>(&modelScenes[numCurrentModelIndex].material));
 
 	// 白色がデフォルト
-	modelScenes.back().material->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
-	modelScenes.back().material->enableLighting = false;
-	modelScenes.back().material->uvTransform = MakeIdentity4x4();
+	modelScenes[numCurrentModelIndex].material->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
+	modelScenes[numCurrentModelIndex].material->enableLighting = false;
+	modelScenes[numCurrentModelIndex].material->uvTransform = MakeIdentity4x4();
 
 	// WVP用のリソースを作る。Matrix4x4 一つ分のサイズを用意する
 	Microsoft::WRL::ComPtr<ID3D12Resource> wvpResource = CreateBufferResource(device, sizeof(TransformationMatrix));
@@ -514,22 +529,16 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	wvpData->WVP = MakeIdentity4x4();
 
 	modelScenes.back().selectedTextureIndex = modelList.numIndex;
-	modelScenes.back().material->color = modelScenes.back().modelData.material.diffuse;
+	if (numCurrentModelIndex) // != 0
+		modelScenes[numCurrentModelIndex].material->color = modelScenes[numCurrentModelIndex].modelData.materialData.diffuse;
 	
-	// 頂点リソースを作る
-	Microsoft::WRL::ComPtr<ID3D12Resource> vertexResource = CreateBufferResource(device, sizeof(VertexData) * modelScenes[numCurrentModelIndex].modelData.vertices.size());
+	Microsoft::WRL::ComPtr vertexResource = CreateVertexResource(device.Get());
 
 	// 頂点バッファービューを作成する
 	D3D12_VERTEX_BUFFER_VIEW vertexBufferView{};
 	vertexBufferView.BufferLocation = vertexResource->GetGPUVirtualAddress();
-	vertexBufferView.SizeInBytes = UINT(sizeof(VertexData) * modelScenes[numCurrentModelIndex].modelData.vertices.size());
+	vertexBufferView.SizeInBytes = UINT(sizeof(VertexData) * vertexCount);
 	vertexBufferView.StrideInBytes = sizeof(VertexData);
-	
-	// 頂点リソースにデータを書き込む
-	VertexData* vertexData = nullptr;
-	vertexResource->Map(0, nullptr, reinterpret_cast<void**>(&vertexData));
-	std::memcpy(vertexData, modelScenes[numCurrentModelIndex].modelData.vertices.data(), sizeof(VertexData) * modelScenes[numCurrentModelIndex].modelData.vertices.size());
-
 
 	Microsoft::WRL::ComPtr<ID3D12Resource> dirLightResource = CreateBufferResource(device, sizeof(DirectionalLight));
 	dirLightResource->Map(0, nullptr, reinterpret_cast<void**>(&dirLightData));
@@ -538,7 +547,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	dirLightData->direction = { 0.0f, -1.0f, 0.0f };
 	dirLightData->intensity = 1.0f;
 
-	/// Sphere - --- --- --- ---
+	/// Model - --- --- --- ---
 	/// -- --- --- --- --- --- ---
 	/// Sprite --- --- --- --- ---
 
@@ -622,11 +631,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	scissorRect.bottom = kClientHeight;
 
 	// Transform変数
-	transform = 
+	transformModel = 
 	{
 		{1.0f, 1.0f, 1.0f},
 		{0.0f, 0.0f, 0.0f},
-		{0.0f, 0.0f, 0.0f}
+		{-0.8f, 0.0f, 0.0f}
 	};
 	cameraTransform = 
 	{
@@ -642,41 +651,26 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 	// SRVを作成するDescriptorHeapの場所を決める
 
-	for (int i = 0; i < modelList.label.size(); i++)
+	for (int i = 0; i < textureList.label.size(); i++)
 	{
 		std::string texturePath;
 		if (i == 0) // [Built-in texture]
 		{
-			texturePath = modelScenes[numCurrentModelIndex].modelData.material.textureFilePath;
+			texturePath = modelScenes[numCurrentModelIndex].modelData.materialData.textureFilePath;
 		}
 		else // その他
 		{
 			std::string textureName = textureList.label[i];
 			texturePath = "Resources/" + textureName;
 		}
+		if (i == 0 && numCurrentModelIndex == 0)
+		{
+			std::string textureName = textureList.label[1];
+			texturePath = "Resources/" + textureName;
+		}
+
 
 		CreateNewTexture(device, srvDescriptorHeap, kDescriptorSizeSRV, texturePath.c_str(), textureResources);
-
-		//// Textureを読んで転送する
-		//DirectX::ScratchImage mipImage = LoadTexture(texturePath);
-		//const DirectX::TexMetadata& metadata = mipImage.GetMetadata();
-		//ID3D12Resource* textureResource = CreateTextureResource(device, metadata);
-		//textureResources.push_back(textureResource);
-		//UploadTextureData(textureResource, mipImage);
-
-		//D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
-		//srvDesc.Format = metadata.format;
-		//srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-		//srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-		//srvDesc.Texture2D.MipLevels = UINT(metadata.mipLevels);
-		////srvDescs.push_back(srvDesc);
-
-		//D3D12_CPU_DESCRIPTOR_HANDLE textureSrvHandleCPU = GetCPUDescriptorHandle(srvDescriptorHeap, kDescriptorSizeSRV, numUploadedTexture);
-		//D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandleGPU = GetGPUDescriptorHandle(srvDescriptorHeap, kDescriptorSizeSRV, numUploadedTexture);
-		//numUploadedTexture++;
-		//textureSrvHandleCPUs.push_back(textureSrvHandleCPU);
-		//textureSrvHandleGPUs.push_back(textureSrvHandleGPU);
-		//device->CreateShaderResourceView(textureResource, &srvDesc, textureSrvHandleCPU);
 	}
 
 #pragma endregion
@@ -714,11 +708,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 			ImGui::NewFrame();
 
 			// ゲームの処理
-			transform.rotate.y += rotateSpeed;
+			transformModel.rotate.y += rotateSpeed;
 
 
 			// WVPMatrixの作成・更新
-			Matrix4x4 worldMatrix = MakeAffineMatrix(transform.scale, transform.rotate, transform.translate);
+			Matrix4x4 worldMatrix = MakeAffineMatrix(transformModel.scale, transformModel.rotate, transformModel.translate);
 			Matrix4x4 cameraMatrix = MakeAffineMatrix(cameraTransform.scale, cameraTransform.rotate, cameraTransform.translate);
 			Matrix4x4 viewMatrix = Inverse(cameraMatrix);
 			Matrix4x4 worldViewProjectionMatrix =
@@ -740,6 +734,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 			ImGuiWindow();
 
+			if (isChangedModelSelect)
+			{
+				vertexResource = CreateVertexResource(device.Get());
+				vertexBufferView.BufferLocation = vertexResource->GetGPUVirtualAddress();
+				vertexBufferView.SizeInBytes = UINT(sizeof(VertexData) * vertexCount);
+				vertexBufferView.StrideInBytes = sizeof(VertexData);
+			}
 
 			// ディスクリプタの先頭を取得する
 			D3D12_CPU_DESCRIPTOR_HANDLE rtvStartHandle = rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
@@ -809,7 +810,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 			// 描画！（DrawCall/ドローコール）。頂点
 			if (isDrawSphere)
-				commandList->DrawInstanced(static_cast<unsigned int>(modelScenes[numCurrentModelIndex].modelData.vertices.size()), 1, 0, 0);
+				commandList->DrawInstanced(vertexCount, 1, 0, 0);
 
 			// Spriteの描画。変更が必要なものだけ変更する。
 			commandList->IASetVertexBuffers(0, 1, &vertexBufferViewSprite);
@@ -1123,8 +1124,24 @@ void ImGuiWindow()
 	/// begin
 
 	ImGui::Text("Model");
-	ImGui::Combo("### Model", reinterpret_cast<int*>(&modelList.numIndex), *modelList.label.data());
+	{
+		std::string combined;
+		for (const char* str : modelList.label)
+		{
+			combined += str;
+			combined += '\0';
+		}
+		ImGui::Combo("### Model", reinterpret_cast<int*>(&modelList.numIndex), combined.c_str(), static_cast<int>(modelList.label.size()));
+		if (modelList.numIndex != numCurrentModelIndex)
+		{
+			isChangedModelSelect = true;
+			numCurrentModelIndex = modelList.numIndex;
+		}
+		else isChangedModelSelect = false;
+	}
+	ImGui::Spacing();
 	ImGui::Separator();
+	ImGui::Spacing();
 	ImGui::BeginTabBar("DEVWINDOW_TABBER");
 
 	if (ImGui::BeginTabItem("Model"))
@@ -1137,7 +1154,7 @@ void ImGuiWindow()
 
 		if(ImGui::CollapsingHeader("Transform"))
 		{
-			ImGuiTemplateTransform("SPHERE_TRANSFORM", &transform.scale.x, &transform.rotate.x, &transform.translate.x);
+			ImGuiTemplateTransform("SPHERE_TRANSFORM", &transformModel.scale.x, &transformModel.rotate.x, &transformModel.translate.x);
 			ImGui::DragFloat("Rotate Speed", &rotateSpeed, 0.001f);
 		}
 		ImGui::Spacing();
@@ -1146,7 +1163,7 @@ void ImGuiWindow()
 		{
 			ImGui::Spacing();
 			ImGui::PushID("SPHERE_MATERIAL");
-			ImGui::ColorEdit4("Color", &materialData->color.x);
+			ImGui::ColorEdit4("Color", &modelScenes[numCurrentModelIndex].material->color.x);
 			if (ImGui::Button("Select Texture"))
 				ImGui::OpenPopup("SELECT_TEXTURE");
 			if (ImGui::BeginPopup("SELECT_TEXTURE"))
@@ -1176,7 +1193,7 @@ void ImGuiWindow()
 		{
 			ImGui::Spacing();
 			ImGui::PushID("SPHERE_LIGHTING");
-			ImGui::Checkbox("Enable Lighting", reinterpret_cast<bool*>(&materialData->enableLighting));
+			ImGui::Checkbox("Enable Lighting", reinterpret_cast<bool*>(&modelScenes[numCurrentModelIndex].material->enableLighting));
 			if (ImGui::DragFloat3("Direction", &dirLightData->direction.x, 0.01f))
 			{
 				dirLightData->direction = Normalize(dirLightData->direction);
@@ -1291,4 +1308,123 @@ void CreateNewTexture(const Microsoft::WRL::ComPtr<ID3D12Device>& _device,
 	textureSrvHandleGPUs.push_back(textureSrvHandleGPU);
 	_device->CreateShaderResourceView(textureResource.Get(), &srvDesc, textureSrvHandleCPU);
 	return;
+}
+
+Microsoft::WRL::ComPtr<ID3D12Resource> CreateVertexResource(ID3D12Device* _device)
+{
+	if (numCurrentModelIndex == 0)
+	{
+		vertexCount = kSubDivision * kSubDivision * 6;
+	}
+	else
+	{
+		vertexCount = static_cast<unsigned int>(modelScenes[numCurrentModelIndex].modelData.vertices.size());
+	}
+
+	// 頂点リソースを作る
+	Microsoft::WRL::ComPtr<ID3D12Resource> vertexResource = CreateBufferResource(_device, sizeof(VertexData) * vertexCount);
+
+	// 頂点リソースにデータを書き込む
+	VertexData* vertexData = nullptr;
+	vertexResource->Map(0, nullptr, reinterpret_cast<void**>(&vertexData));
+	if (numCurrentModelIndex == 0)
+	{
+		BuildSphere(vertexData, kSubDivision, vertexCount);
+	}
+	else
+	{
+		vertexCount = static_cast<unsigned int>(modelScenes[numCurrentModelIndex].modelData.vertices.size());
+		std::memcpy(vertexData, modelScenes[numCurrentModelIndex].modelData.vertices.data(), sizeof(VertexData) * vertexCount);
+	}
+
+	return vertexResource;
+}
+
+void BuildSphere(VertexData* _vertexData, uint32_t _subDivision, unsigned int& _vertexCount) 
+{
+	_vertexCount = _subDivision * _subDivision * 6;
+	// 経度分割1つ分の角度
+	const float kLonEvery = std::numbers::pi_v<float> *2.0f / float(_subDivision);
+	// 緯度分割1つ分の角度
+	const float kLatEvery = std::numbers::pi_v<float> / float(_subDivision);
+	uint32_t startIndex = 0;
+	// 緯度の方向に分割
+	for (uint32_t latIndex = 0; latIndex < _subDivision; ++latIndex)
+	{
+		float lat = -std::numbers::pi_v<float> / 2.0f + kLatEvery * latIndex;
+		// 経度の方向に分割しながら線を描く
+		for (uint32_t lonIndex = 0; lonIndex < _subDivision; ++lonIndex)
+		{
+			float lon = lonIndex * kLonEvery;
+			float u, v;
+
+			// 頂点にデータを入力する。基準点a
+			_vertexData[startIndex].position.x = std::cosf(lat) * std::cosf(lon);
+			_vertexData[startIndex].position.y = std::sinf(lat);
+			_vertexData[startIndex].position.z = std::cosf(lat) * std::sinf(lon);
+			_vertexData[startIndex].position.w = 1.0f;
+			_vertexData[startIndex].normal.x = _vertexData[startIndex].position.x;
+			_vertexData[startIndex].normal.y = _vertexData[startIndex].position.y;
+			_vertexData[startIndex].normal.z = _vertexData[startIndex].position.z;
+			u = float(lonIndex) / float(_subDivision);
+			v = 1.0f - float(latIndex) / float(_subDivision);
+			_vertexData[startIndex++].texcoord = { u, v };
+			// b
+			_vertexData[startIndex].position.x = std::cosf(lat + kLatEvery) * std::cosf(lon);
+			_vertexData[startIndex].position.y = std::sinf(lat + kLatEvery);
+			_vertexData[startIndex].position.z = std::cosf(lat + kLatEvery) * std::sinf(lon);
+			_vertexData[startIndex].position.w = 1.0f;
+			_vertexData[startIndex].normal.x = _vertexData[startIndex].position.x;
+			_vertexData[startIndex].normal.y = _vertexData[startIndex].position.y;
+			_vertexData[startIndex].normal.z = _vertexData[startIndex].position.z;
+			u = float(lonIndex) / float(_subDivision);
+			v = 1.0f - float(latIndex + 1) / float(_subDivision);
+			_vertexData[startIndex++].texcoord = { u, v };
+			// c
+			_vertexData[startIndex].position.x = std::cosf(lat) * std::cosf(lon + kLonEvery);
+			_vertexData[startIndex].position.y = std::sinf(lat);
+			_vertexData[startIndex].position.z = std::cosf(lat) * std::sinf(lon + kLonEvery);
+			_vertexData[startIndex].position.w = 1.0f;
+			_vertexData[startIndex].normal.x = _vertexData[startIndex].position.x;
+			_vertexData[startIndex].normal.y = _vertexData[startIndex].position.y;
+			_vertexData[startIndex].normal.z = _vertexData[startIndex].position.z;
+			u = float(lonIndex + 1) / float(_subDivision);
+			v = 1.0f - float(latIndex) / float(_subDivision);
+			_vertexData[startIndex++].texcoord = { u, v };
+
+			// d
+			_vertexData[startIndex].position.x = std::cosf(lat + kLatEvery) * std::cosf(lon + kLonEvery);
+			_vertexData[startIndex].position.y = std::sinf(lat + kLatEvery);
+			_vertexData[startIndex].position.z = std::cosf(lat + kLatEvery) * std::sinf(lon + kLonEvery);
+			_vertexData[startIndex].position.w = 1.0f;
+			_vertexData[startIndex].normal.x = _vertexData[startIndex].position.x;
+			_vertexData[startIndex].normal.y = _vertexData[startIndex].position.y;
+			_vertexData[startIndex].normal.z = _vertexData[startIndex].position.z;
+			u = float(lonIndex + 1) / float(_subDivision);
+			v = 1.0f - float(latIndex + 1) / float(_subDivision);
+			_vertexData[startIndex++].texcoord = { u, v };
+			// c2
+			_vertexData[startIndex].position.x = std::cosf(lat) * std::cosf(lon + kLonEvery);
+			_vertexData[startIndex].position.y = std::sinf(lat);
+			_vertexData[startIndex].position.z = std::cosf(lat) * std::sinf(lon + kLonEvery);
+			_vertexData[startIndex].position.w = 1.0f;
+			_vertexData[startIndex].normal.x = _vertexData[startIndex].position.x;
+			_vertexData[startIndex].normal.y = _vertexData[startIndex].position.y;
+			_vertexData[startIndex].normal.z = _vertexData[startIndex].position.z;
+			u = float(lonIndex + 1) / float(_subDivision);
+			v = 1.0f - float(latIndex) / float(_subDivision);
+			_vertexData[startIndex++].texcoord = { u, v };
+			// b2
+			_vertexData[startIndex].position.x = std::cosf(lat + kLatEvery) * std::cosf(lon);
+			_vertexData[startIndex].position.y = std::sinf(lat + kLatEvery);
+			_vertexData[startIndex].position.z = std::cosf(lat + kLatEvery) * std::sinf(lon);
+			_vertexData[startIndex].position.w = 1.0f;
+			_vertexData[startIndex].normal.x = _vertexData[startIndex].position.x;
+			_vertexData[startIndex].normal.y = _vertexData[startIndex].position.y;
+			_vertexData[startIndex].normal.z = _vertexData[startIndex].position.z;
+			u = float(lonIndex) / float(_subDivision);
+			v = 1.0f - float(latIndex + 1) / float(_subDivision);
+			_vertexData[startIndex++].texcoord = { u, v };
+		}
+	}
 }

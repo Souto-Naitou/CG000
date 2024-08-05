@@ -82,7 +82,7 @@ ModelData LoadObjFile(const std::string& _directoryPath, const std::string& _fil
             std::string materialFilename;
             s >> materialFilename;
             // 基本的にobjファイルと同一階層にmtlを配置するためディレクトリ名とファイル名を渡す
-            modelData.material = LoadMaterialTemplateFile(_directoryPath, materialFilename);
+            modelData.materialData = LoadMaterialTemplateFile(_directoryPath, materialFilename);
         }
     }
     // 4 Return ModelData

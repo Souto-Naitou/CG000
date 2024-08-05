@@ -48,7 +48,7 @@ struct MaterialData
 struct ModelData
 {
 	std::vector<VertexData> vertices;
-	MaterialData material;
+	MaterialData materialData;
 };
 
 struct D3DResourceLeakChecker
