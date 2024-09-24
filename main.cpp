@@ -1247,6 +1247,7 @@ void ImGuiWindow()
 				dirLightData->direction = Normalize(dirLightData->direction);
 			}
 			ImGui::ColorEdit4("Color", &dirLightData->color.x);
+			ImGui::DragFloat("Intensity", &dirLightData->intensity, 0.01f);
 			ImGui::PopID();
 		}
 		ImGui::Spacing();
