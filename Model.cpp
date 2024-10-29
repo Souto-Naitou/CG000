@@ -5,8 +5,8 @@
 
 ModelData LoadObjFile(const std::string& _directoryPath, const std::string& _filename)
 {
-    
-    // 1 Decleare variable
+
+    // 1 Declare variable
     ModelData modelData;
     std::vector<Vector4>    positions;
     std::vector<Vector3>    normals;

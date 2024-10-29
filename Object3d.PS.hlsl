@@ -27,14 +27,18 @@ struct PixelShaderOutput
 Texture2D<float32_t4> gTexture : register(t0);
 SamplerState gSampler : register(s0);
 
-PixelShaderOutput main(VertexShaderOutput input) 
-{ 
+PixelShaderOutput main(VertexShaderOutput input)
+{
     PixelShaderOutput output;
-    
-    float4 transformedUV = mul(float32_t4(input.texcoord, 0.0f, 1.0f), gMaterial.uvTransform);
-    float32_t4 textureColor = gTexture.Sample(gSampler, transformedUV.xy);
 
-    
+    float4 transformedUV = mul(float32_t4(input.texcoord, 0.0f, 1.0f), gMaterial.uvTransform);
+    float4 textureColor = gTexture.Sample(gSampler, transformedUV.xy);
+
+    if (textureColor.a <= 0)
+    {
+        discard;
+    }
+
     if (gMaterial.enableLighting != 0)
     {
         float cos;
@@ -56,6 +60,6 @@ PixelShaderOutput main(VertexShaderOutput input)
     {
         output.color = gMaterial.color * textureColor;
     }
-    
+
     return output;
 }

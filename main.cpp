@@ -65,7 +65,7 @@ ImGuiListData textureList;
 ImGuiListData lightingTypeList;
 
 std::vector<ModelScene> modelScenes;
-unsigned int numCurrentModelIndex = 0u;
+unsigned int numCurrentModelIndex = 4u;
 unsigned int numCurrentModelIndexPrev = 0u;
 
 std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> textureSrvHandleCPUs;
@@ -86,9 +86,9 @@ D3D12_CPU_DESCRIPTOR_HANDLE GetCPUDescriptorHandle(const Microsoft::WRL::ComPtr<
 D3D12_GPU_DESCRIPTOR_HANDLE GetGPUDescriptorHandle(const Microsoft::WRL::ComPtr<ID3D12DescriptorHeap>& _descriptorHeap, uint32_t _descriptorSize, uint32_t _index);
 void ImGuiWindow();
 void ImGuiTemplateTransform(const char* _id, float* _scale, float* _rotate, float* _translate);
-void CreateNewTexture(const Microsoft::WRL::ComPtr<ID3D12Device>& _device, 
-	const Microsoft::WRL::ComPtr<ID3D12DescriptorHeap>& _srvDescriptorHeap, 
-	const uint32_t _kDescriptorSizeSRV, 
+void CreateNewTexture(const Microsoft::WRL::ComPtr<ID3D12Device>& _device,
+	const Microsoft::WRL::ComPtr<ID3D12DescriptorHeap>& _srvDescriptorHeap,
+	const uint32_t _kDescriptorSizeSRV,
 	const char* _path,
 	std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>>& _textureResources
 );
@@ -121,6 +121,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	modelList.label.push_back("Plane");
 	modelList.label.push_back("Utah Teapot");
 	modelList.label.push_back("Stanford Bunny");
+	modelList.label.push_back("Fence");
 	modelList.numIndex = 0u;
 
 
@@ -156,7 +157,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		wrc.bottom - wrc.top,	// ウィンドウ縦幅
 		nullptr,				// 親ウィンドウハンドル(子ウィンドウ作るときに使うかも？)
 		nullptr,				// メニューハンドル
-		wc.hInstance,			// インスタンスハンドル	
+		wc.hInstance,			// インスタンスハンドル
 		nullptr					// オプション
 	);
 	ShowWindow(hwnd, SW_SHOW);
@@ -234,7 +235,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	Microsoft::WRL::ComPtr<ID3D12InfoQueue> infoQueue = nullptr;
 	if (SUCCEEDED(device->QueryInterface(IID_PPV_ARGS(&infoQueue))))
 	{
-		// やばいエラー時に止まる　
+		// やばいエラー時に止まる
 		infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, true);
 		// エラー時に止まる <- 解放忘れが判明したら、コメントアウト
 		infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, true);
@@ -420,7 +421,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	inputElementDescs[2].SemanticIndex = 0;
 	inputElementDescs[2].Format = DXGI_FORMAT_R32G32B32_FLOAT;
 	inputElementDescs[2].AlignedByteOffset = D3D12_APPEND_ALIGNED_ELEMENT;
-	
+
 	D3D12_INPUT_LAYOUT_DESC inputLayoutDesc{};
 	inputLayoutDesc.pInputElementDescs = inputElementDescs;
 	inputLayoutDesc.NumElements = _countof(inputElementDescs);
@@ -471,7 +472,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	depthStencilDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
 	// 比較関数はLessEqual。つまり、近ければ描画される
 	depthStencilDesc.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
-	
+
 	/// PSOを生成する
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC graphicsPipelineStateDesc{};
 	graphicsPipelineStateDesc.pRootSignature = rootSignature.Get();	// RootSignature
@@ -500,7 +501,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		IID_PPV_ARGS(&graphicsPipelineState));
 	assert(SUCCEEDED(hr));
 	if (!graphicsPipelineState) return -1;
-	
+
 
 
 	/// CreateBuffer --- --- --- --- ---
@@ -510,9 +511,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 	/// モデル読み込み	--- --- --- --- ---
 
-	modelScenes.push_back({ 
-		.modelData = {}, 
-		.material = nullptr, 
+	modelScenes.push_back({
+		.modelData = {},
+		.material = nullptr,
 		.selectedTextureIndex = 0
 		}
 	);
@@ -524,6 +525,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	modelScenes.back().material->uvTransform = MakeIdentity4x4();
 
 
+    /// 板ポリゴン
 	modelScenes.push_back({
 		.modelData = LoadObjFile("resources", "plane.obj"),
 		.material = nullptr,
@@ -538,10 +540,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	modelScenes.back().material->uvTransform = MakeIdentity4x4();
 
 
-	modelScenes.push_back({ 
+    /// ティーポット
+	modelScenes.push_back({
 		.modelData = LoadObjFile("resources", "teapot.obj"),
 		.material = nullptr,
-		.selectedTextureIndex = 0 
+		.selectedTextureIndex = 0
 		}
 	);
 	// 書き込むためのアドレスを取得
@@ -552,8 +555,24 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	modelScenes.back().material->uvTransform = MakeIdentity4x4();
 
 
+    /// バニー
 	modelScenes.push_back({
 	.modelData = LoadObjFile("resources", "bunny.obj"),
+	.material = nullptr,
+	.selectedTextureIndex = 0
+		}
+	);
+	// 書き込むためのアドレスを取得
+	materialResource->Map(0, nullptr, reinterpret_cast<void**>(&modelScenes.back().material));
+	// 白色がデフォルト
+	modelScenes.back().material->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
+	modelScenes.back().material->enableLighting = false;
+	modelScenes.back().material->uvTransform = MakeIdentity4x4();
+
+
+    /// フェンス
+	modelScenes.push_back({
+	.modelData = LoadObjFile("resources", "fence.obj"),
 	.material = nullptr,
 	.selectedTextureIndex = 0
 		}
@@ -578,7 +597,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	modelScenes.back().selectedTextureIndex = modelList.numIndex;
 	if (numCurrentModelIndex) // != 0
 		modelScenes[numCurrentModelIndex].material->color = modelScenes[numCurrentModelIndex].modelData.materialData.diffuse;
-	
+
 	Microsoft::WRL::ComPtr vertexResource = CreateVertexResource(device.Get());
 
 	// 頂点バッファービューを作成する
@@ -620,7 +639,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	indexResourceSprite->Map(0, nullptr, reinterpret_cast<void**>(&indexDataSprite));
 	indexDataSprite[0] = 0;	indexDataSprite[1] = 1;	indexDataSprite[2] = 2;
 	indexDataSprite[3] = 1; indexDataSprite[4] = 3; indexDataSprite[5] = 2;
-	
+
 	// Sprite用の頂点リソースを作る
 	Microsoft::WRL::ComPtr<ID3D12Resource> vertexResourceSprite = CreateBufferResource(device, sizeof(VertexData) * 4);
 	// 頂点バッファビューを作成する
@@ -668,7 +687,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	viewport.TopLeftY = 0;
 	viewport.MinDepth = 0.0f;
 	viewport.MaxDepth = 1.0f;
-	
+
 	// シザー矩形
 	D3D12_RECT scissorRect{};
 	// 基本的にビューポートと同じ矩形が構成されるようにする
@@ -678,17 +697,17 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	scissorRect.bottom = kClientHeight;
 
 	// Transform変数
-	transformModel = 
+	transformModel =
 	{
 		{1.0f, 1.0f, 1.0f},
 		{0.0f, 0.0f, 0.0f},
 		{-0.8f, 0.0f, 0.0f}
 	};
-	cameraTransform = 
+	cameraTransform =
 	{
-		{1.0f, 1.0f, 1.0f},
-		{0.0f, 0.0f, 0.0f},
-		{0.0f, 0.0f, -10.0f}
+		{1.f, 1.0f, 1.0f},
+		{0.65f, 0.0f, 0.0f},
+		{0.0f, 8.f, -10.0f}
 	};
 
 	Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(0.45f, float(kClientWidth) / float(kClientHeight), 0.1f, 100.0f);
@@ -790,6 +809,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 				modelScenes[numCurrentModelIndexPrev].selectedTextureIndex = textureList.numIndex;
 				textureList.numIndex = modelScenes[numCurrentModelIndex].selectedTextureIndex;
 				if (modelList.numIndex == 1) transformModel.rotate.y = 3.130f;
+                if (modelList.numIndex == 4) transformModel.rotate.y = 3.130f;
 			}
 
 			// ディスクリプタの先頭を取得する
@@ -851,7 +871,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 			commandList->SetGraphicsRootConstantBufferView(3, dirLightResource->GetGPUVirtualAddress());
 
-			
+
 			// 描画先のRTVとDSVを設定する
 			D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = dsvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
 			commandList->OMSetRenderTargets(1, &rtvHandles[backBufferIndex], false, &dsvHandle);
@@ -935,7 +955,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 LRESULT WindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
-	
+
 	if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wparam, lparam))
 	{
 		return true;
@@ -952,7 +972,7 @@ LRESULT WindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 
 	// 標準のメッセージ処理を行う
 	return DefWindowProc(hwnd, msg, wparam, lparam);
-	
+
 }
 
 Microsoft::WRL::ComPtr<IDxcBlob> CompileShader(const std::wstring& filePath, const wchar_t* profile, const Microsoft::WRL::ComPtr<IDxcUtils>& dxcUtils, const Microsoft::WRL::ComPtr<IDxcCompiler3>& dxcCompiler, const Microsoft::WRL::ComPtr<IDxcIncludeHandler>& includeHandler)
@@ -1004,7 +1024,7 @@ Microsoft::WRL::ComPtr<IDxcBlob> CompileShader(const std::wstring& filePath, con
 	}
 
 	/// 4. Compile結果を受け取って返す
-	
+
 	// コンパイル結果から実行用のバイナリ部分を取得
 	Microsoft::WRL::ComPtr<IDxcBlob> shaderBlob = nullptr;
 	hr = shaderResult->GetOutput(DXC_OUT_OBJECT, IID_PPV_ARGS(&shaderBlob), nullptr);
@@ -1143,7 +1163,7 @@ Microsoft::WRL::ComPtr<ID3D12Resource> CreateDepthStencilTextureResource(const M
 		IID_PPV_ARGS(&resource)
 	);
 	assert(SUCCEEDED(hr));
-	
+
 
 	return resource;
 }
@@ -1341,9 +1361,9 @@ void ImGuiTemplateTransform(const char* _id, float* _scale, float* _rotate, floa
 }
 
 void CreateNewTexture(const Microsoft::WRL::ComPtr<ID3D12Device>& _device,
-	const Microsoft::WRL::ComPtr<ID3D12DescriptorHeap>& _srvDescriptorHeap, 
-	const uint32_t _kDescriptorSizeSRV, 
-	const char* _path, 
+	const Microsoft::WRL::ComPtr<ID3D12DescriptorHeap>& _srvDescriptorHeap,
+	const uint32_t _kDescriptorSizeSRV,
+	const char* _path,
 	std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>>& _textureResources)
 {
 	DirectX::ScratchImage mipImage = LoadTexture(_path);
@@ -1397,7 +1417,7 @@ Microsoft::WRL::ComPtr<ID3D12Resource> CreateVertexResource(ID3D12Device* _devic
 	return vertexResource;
 }
 
-void BuildSphere(VertexData* _vertexData, uint32_t _subDivision, unsigned int& _vertexCount) 
+void BuildSphere(VertexData* _vertexData, uint32_t _subDivision, unsigned int& _vertexCount)
 {
 	_vertexCount = _subDivision * _subDivision * 6;
 	// 経度分割1つ分の角度
