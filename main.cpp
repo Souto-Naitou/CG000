@@ -131,7 +131,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     modelList.label.push_back("Stanford Bunny");
 #endif // NOBUNNY
     modelList.label.push_back("Fence");
-    modelList.numIndex = 0u;
+    modelList.numIndex = 1u;
 
 
     textureList.label.push_back("[Built-in texture]");
@@ -279,13 +279,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     // 出力ウィンドウへの文字出力
     Log(std::format("Hello, {}\n", "DirectX!"));
 
+
     // コマンドキューを生成する
     Microsoft::WRL::ComPtr<ID3D12CommandQueue> commandQueue = nullptr;
     D3D12_COMMAND_QUEUE_DESC commandQueueDesc{};
     hr = device->CreateCommandQueue(&commandQueueDesc, IID_PPV_ARGS(&commandQueue));
-    // コマンドキューの生成がうまくいかなかったので起動できない。
+    // コマンドキューの生成がうまくいかなかったので起動できない
     assert(SUCCEEDED(hr));
     if (!commandQueue) return -1;
+
 
     // コマンドアロケータを生成する
     Microsoft::WRL::ComPtr<ID3D12CommandAllocator> commandAllocator = nullptr;
@@ -294,11 +296,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     assert(SUCCEEDED(hr));
     if (!commandAllocator) return -1;
 
+
     // コマンドリストを生成する
     Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> commandList = nullptr;
     hr = device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, commandAllocator.Get(), nullptr, IID_PPV_ARGS(&commandList));
     // コマンドリストの生成がうまくいかなかったので起動できない
     assert(SUCCEEDED(hr));
+
 
     // スワップチェーンを生成する
     Microsoft::WRL::ComPtr<IDXGISwapChain4> swapChain = nullptr;
@@ -311,14 +315,17 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     swapChainDesc.BufferCount = 2;									// ダブルバッファ
     swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;		// モニタにうつしたら、中身を破棄
 
+
     // コマンドキュー、ウィンドウハンドル、設定を渡して生成する
     hr = dxgiFactory->CreateSwapChainForHwnd(commandQueue.Get(), hwnd, &swapChainDesc, nullptr, nullptr, reinterpret_cast<IDXGISwapChain1**>(swapChain.GetAddressOf()));
     assert(SUCCEEDED(hr));
+
 
     // ディスクリプタヒープの生成
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> rtvDescriptorHeap = CreateDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 2, false);
 
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> srvDescriptorHeap = CreateDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 128, true);
+
 
     // SwapChainからResourceを引っ張ってくる
     Microsoft::WRL::ComPtr<ID3D12Resource> swapChainResources[2] = { nullptr };
@@ -330,10 +337,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     // うまく取得できなければ起動できない
     assert(SUCCEEDED(hr));
 
+
     // RTVの設定
     D3D12_RENDER_TARGET_VIEW_DESC rtvDesc{};
     rtvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
     rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+
 
     // 初期値0でFenceを作る
     Microsoft::WRL::ComPtr<ID3D12Fence> fence = nullptr;
@@ -341,9 +350,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     hr = device->CreateFence(fenceValue, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence));
     assert(SUCCEEDED(hr));
 
+
     // FenceのSignalを待つためのイベントを作成する
     HANDLE fenceEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
     assert(fenceEvent != nullptr);
+
 
     // dxcCompilerを初期化
     Microsoft::WRL::ComPtr<IDxcUtils> dxcUtils = nullptr;
@@ -364,10 +375,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     descriptorRangeForInstancing[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV; // SRVを使う
     descriptorRangeForInstancing[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND; // Offsetを自動計算
 
+
     /// RootSignature作成
     D3D12_ROOT_SIGNATURE_DESC descriptionRootSignature{};
     descriptionRootSignature.Flags =
         D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
 
     // RootParameter作成。複数設定できるので配列。今回は結果1つだけなので長さ１の配列
     D3D12_ROOT_PARAMETER rootParameters[4] = {};
@@ -392,6 +405,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     descriptionRootSignature.pParameters = rootParameters;				// ルートパラメータ配列へのポインタ
     descriptionRootSignature.NumParameters = _countof(rootParameters);	// 配列の長さ
 
+
     D3D12_STATIC_SAMPLER_DESC staticSamplers[1] = {};
     staticSamplers[0].Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR; // BilinearFilter
     staticSamplers[0].AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP; // 0 ~ 1の範囲外をリピート
@@ -403,6 +417,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     staticSamplers[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL; // PixelShaderを使う
     descriptionRootSignature.pStaticSamplers = staticSamplers;
     descriptionRootSignature.NumStaticSamplers = _countof(staticSamplers);
+
 
     // シリアライズしてバイナリにする
     Microsoft::WRL::ComPtr<ID3DBlob> signatureBlob = nullptr;
@@ -419,6 +434,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     hr = device->CreateRootSignature(0, signatureBlob->GetBufferPointer(),
         signatureBlob->GetBufferSize(), IID_PPV_ARGS(&rootSignature));
     assert(SUCCEEDED(hr));
+
 
     /// InputLayout
     D3D12_INPUT_ELEMENT_DESC inputElementDescs[3] = {};
@@ -439,6 +455,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     inputLayoutDesc.pInputElementDescs = inputElementDescs;
     inputLayoutDesc.NumElements = _countof(inputElementDescs);
 
+
     /// BlendStateの設定
     D3D12_BLEND_DESC blendDesc{};
     // すべての色要素を書き込む
@@ -453,12 +470,14 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     blendDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
     blendDesc.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
 
+
     // RasterizerStateの設定
     D3D12_RASTERIZER_DESC rasterizerDesc{};
     // 裏面（時計回り）を表示しない
     rasterizerDesc.CullMode = D3D12_CULL_MODE_BACK;
     // 三角形の中を塗りつぶす
     rasterizerDesc.FillMode = D3D12_FILL_MODE_SOLID;
+
 
     /// ShaderをCompileする
     Microsoft::WRL::ComPtr<IDxcBlob> vertexShaderBlob = CompileShader(L"Particle.VS.hlsl",
@@ -468,6 +487,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     Microsoft::WRL::ComPtr<IDxcBlob> pixelShaderBlob = CompileShader(L"Particle.PS.hlsl",
         L"ps_6_0", dxcUtils.Get(), dxcCompiler.Get(), includeHandler.Get());
     assert(pixelShaderBlob != nullptr);
+
 
     // DespStencilResource
     Microsoft::WRL::ComPtr<ID3D12Resource> depthStencilResource = CreateDepthStencilTextureResource(device, kClientWidth, kClientHeight);
@@ -487,6 +507,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     depthStencilDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
     // 比較関数はLessEqual。つまり、近ければ描画される
     depthStencilDesc.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+
 
     /// PSOを生成する
     D3D12_GRAPHICS_PIPELINE_STATE_DESC graphicsPipelineStateDesc{};
@@ -942,10 +963,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
             commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
             // wvp用CBufferの場所を設定
             //commandList->SetGraphicsRootConstantBufferView(1, wvpResource->GetGPUVirtualAddress());
-
-            //if (selectedIndexTextureNameList == 0){}
-            //else if(selectedIndexTextureNameList == 1) commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU1);
-            //else if(selectedIndexTextureNameList == 2) commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU2);
 
             commandList->SetGraphicsRootConstantBufferView(3, dirLightResource->GetGPUVirtualAddress());
 
