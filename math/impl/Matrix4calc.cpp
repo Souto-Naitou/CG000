@@ -1,6 +1,10 @@
-#include "matrix4calc.h"
+// Copyright © 2024 Souto-Naitou. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+
+#include "../matrix4calc.h"
+#include "../MathExtension/mathExtension.h"
+
 #include <cmath>
-#include "../../MathExtension/mathExtension.h"
 #include <cassert>
 
 Matrix4x4 Add(const Matrix4x4& _m1, const Matrix4x4& _m2)
@@ -270,12 +274,12 @@ Matrix4x4 MakeRotateYMatrix(float _radian)
 {
 	Matrix4x4 result{};
 	
+	result.m[1][1] = 1.0f;
+	result.m[3][3] = 1.0f;
 	result.m[0][0] = std::cosf(_radian);
 	result.m[0][2] = -std::sinf(_radian);
-	result.m[1][1] = 1.0f;
 	result.m[2][0] = std::sinf(_radian);
 	result.m[2][2] = std::cosf(_radian);
-	result.m[3][3] = 1.0f;
 
 	return result;
 }
@@ -311,21 +315,12 @@ Matrix4x4 MakeAffineMatrix(
 		)
 	);
 
-	Matrix4x4 scaleMatrix{};
-	scaleMatrix.m[0][0] = _scale.x;
-	scaleMatrix.m[1][1] = _scale.y;
-	scaleMatrix.m[2][2] = _scale.z;
-	scaleMatrix.m[3][3] = 1.0f;
-	
-	//for (int i = 0; i < 3; i++)
-	//{
-	//	result.m[0][i] = _scale.x * rotateMatrix.m[0][i];
-	//	result.m[1][i] = _scale.y * rotateMatrix.m[1][i];
-	//	result.m[2][i] = _scale.z * rotateMatrix.m[2][i];
-	//}
-
-	result = Multiply(scaleMatrix, rotateMatrix);
-
+	for (int i = 0; i < 3; i++)
+	{
+		result.m[0][i] = _scale.x * rotateMatrix.m[0][i];
+		result.m[1][i] = _scale.y * rotateMatrix.m[1][i];
+		result.m[2][i] = _scale.z * rotateMatrix.m[2][i];
+	}
 	result.m[3][0] = _translate.x;
 	result.m[3][1] = _translate.y;
 	result.m[3][2] = _translate.z;

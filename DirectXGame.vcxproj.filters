@@ -13,12 +13,6 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
-    <Filter Include="Matrix4x4">
-      <UniqueIdentifier>{cadd25bc-a611-451c-92da-296e1b89522e}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Matrix4x4\calc">
-      <UniqueIdentifier>{79dc4e85-d333-4be7-a680-273b9cf41de7}</UniqueIdentifier>
-    </Filter>
     <Filter Include="MathExtension">
       <UniqueIdentifier>{c660d0ad-1f94-4b54-ad19-03bd5a7b57ac}</UniqueIdentifier>
     </Filter>
@@ -27,6 +21,9 @@
     </Filter>
     <Filter Include="shader">
       <UniqueIdentifier>{4b0bc33d-3027-45e3-804e-d4ad7e50222b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="math">
+      <UniqueIdentifier>{c5030cc5-23a0-43b8-ae58-2f4e2ed088bd}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -38,12 +35,6 @@
     </ClCompile>
     <ClCompile Include="Logger.cpp">
       <Filter>ソース ファイル</Filter>
-    </ClCompile>
-    <ClCompile Include="Matrix4x4\calc\matrix4calc.cpp">
-      <Filter>Matrix4x4\calc</Filter>
-    </ClCompile>
-    <ClCompile Include="MathExtension\mathExtension.cpp">
-      <Filter>MathExtension</Filter>
     </ClCompile>
     <ClCompile Include="externals\imgui\imgui.cpp">
       <Filter>imgui</Filter>
@@ -66,11 +57,29 @@
     <ClCompile Include="externals\imgui\imgui_widgets.cpp">
       <Filter>imgui</Filter>
     </ClCompile>
-    <ClCompile Include="Vector3\calc\vector3calc.cpp">
-      <Filter>ソース ファイル</Filter>
-    </ClCompile>
     <ClCompile Include="Model.cpp">
       <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="math\impl\Matrix4calc.cpp">
+      <Filter>math</Filter>
+    </ClCompile>
+    <ClCompile Include="math\impl\Matrix4x4.cpp">
+      <Filter>math</Filter>
+    </ClCompile>
+    <ClCompile Include="math\impl\Vector2.cpp">
+      <Filter>math</Filter>
+    </ClCompile>
+    <ClCompile Include="math\impl\Vector3.cpp">
+      <Filter>math</Filter>
+    </ClCompile>
+    <ClCompile Include="math\impl\vector3calc.cpp">
+      <Filter>math</Filter>
+    </ClCompile>
+    <ClCompile Include="math\impl\Vector4.cpp">
+      <Filter>math</Filter>
+    </ClCompile>
+    <ClCompile Include="math\MathExtension\mathExtension.cpp">
+      <Filter>math</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -79,21 +88,6 @@
     </ClInclude>
     <ClInclude Include="ConvertString.h">
       <Filter>ヘッダー ファイル</Filter>
-    </ClInclude>
-    <ClInclude Include="math\Vector4.h">
-      <Filter>ヘッダー ファイル</Filter>
-    </ClInclude>
-    <ClInclude Include="Matrix4x4\calc\matrix4calc.h">
-      <Filter>Matrix4x4\calc</Filter>
-    </ClInclude>
-    <ClInclude Include="Matrix4x4.h">
-      <Filter>ヘッダー ファイル</Filter>
-    </ClInclude>
-    <ClInclude Include="Vector3.h">
-      <Filter>ヘッダー ファイル</Filter>
-    </ClInclude>
-    <ClInclude Include="MathExtension\mathExtension.h">
-      <Filter>MathExtension</Filter>
     </ClInclude>
     <ClInclude Include="Transform.h">
       <Filter>ヘッダー ファイル</Filter>
@@ -125,14 +119,26 @@
     <ClInclude Include="structs.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
-    <ClInclude Include="Vector2.h">
-      <Filter>ヘッダー ファイル</Filter>
-    </ClInclude>
-    <ClInclude Include="Vector3\calc\vector3calc.h">
-      <Filter>ヘッダー ファイル</Filter>
-    </ClInclude>
     <ClInclude Include="Model.h">
       <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="math\MathExtension\mathExtension.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="math\matrix4calc.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="math\Matrix4x4.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="math\Vector2.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="math\Vector3.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="math\Vector4.h">
+      <Filter>math</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

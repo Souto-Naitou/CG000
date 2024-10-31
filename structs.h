@@ -2,7 +2,8 @@
 #include "math/Vector4.h"
 #include "math/Vector2.h"
 #include "math/Vector3.h"
-#include "Matrix4x4.h"
+#include "math/Matrix4x4.h"
+#include "Transform.h"
 
 #include <vector>
 #include <string>
@@ -84,4 +85,20 @@ struct ModelScene
 	ModelData modelData;
 	Material* material;
 	unsigned int selectedTextureIndex; // numIndexを保存しておく用
+};
+
+struct Particle
+{
+    sTransform transform;
+    Vector3 velocity;
+    Vector4 color;
+    float lifeTime;
+    float currentTime;
+};
+
+struct ParticleForGPU
+{
+	Matrix4x4 wvp;
+    Matrix4x4 world;
+    Vector4 color;
 };

@@ -1,6 +1,9 @@
+// Copyright © 2024 Souto-Naitou. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+
 #pragma once
-#include "../../Matrix4x4.h"
-#include "../../math/Vector3.h"
+#include "Matrix4x4.h"
+#include "Vector3.h"
 
 Matrix4x4 Add(const Matrix4x4& _m1, const Matrix4x4& _m2);
 
@@ -24,7 +27,7 @@ Matrix4x4 MakeRotateZMatrix(float _radian);
 
 #ifdef NOTDEFINE
 // Transform関数はVector3へ ↓
-#include "Vector3/calc/vector3calc.h";
+#include <vector3calc.h>;
 #endif //NOTDEFINE 
 
 Matrix4x4 MakeAffineMatrix(
