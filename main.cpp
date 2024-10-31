@@ -575,6 +575,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     for (uint32_t index = 0; index < kNumMaxInstance; ++index)
     {
         particles[index] = CreateParticle(randomEngine);
+        particles[index].transform.rotate.y = 3.14159265358979323846f;
     }
 
 
