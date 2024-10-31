@@ -25,6 +25,9 @@
     <Filter Include="imgui">
       <UniqueIdentifier>{aea3d165-36f1-4575-8062-e71ca873f5d7}</UniqueIdentifier>
     </Filter>
+    <Filter Include="shader">
+      <UniqueIdentifier>{4b0bc33d-3027-45e3-804e-d4ad7e50222b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -133,8 +136,18 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="Object3d.VS.hlsl" />
-    <FxCompile Include="Object3d.PS.hlsl" />
+    <FxCompile Include="Particle.VS.hlsl">
+      <Filter>shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Object3d.PS.hlsl">
+      <Filter>shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Object3d.VS.hlsl">
+      <Filter>shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Particle.PS.hlsl">
+      <Filter>shader</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <Text Include="externals\imgui\LICENSE.txt">
@@ -143,6 +156,11 @@
     <Text Include="Stash.txt" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Object3d.hlsli" />
+    <None Include="Object3d.hlsli">
+      <Filter>shader</Filter>
+    </None>
+    <None Include="Particle.hlsli">
+      <Filter>shader</Filter>
+    </None>
   </ItemGroup>
 </Project>
